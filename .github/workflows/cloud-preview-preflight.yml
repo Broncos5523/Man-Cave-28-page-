@@ -1,0 +1,23 @@
+name: Man Cave Cloud Preview Preflight
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check staging prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Checking 28-board cloud preview staging..."
+          test -f CLOUD_STAGING_STATUS.md
+          if [ ! -f cloud-engine/publish_feeds.py ]; then
+            echo "::notice::Sports-data engine not uploaded yet; this is a staging-only check."
+          fi
+          if [ ! -f static-preview/tv-player-preview.html ]; then
+            echo "::notice::TV player and original art not uploaded yet."
+          fi
+          echo "Staging branch is available. No production deployment performed."
