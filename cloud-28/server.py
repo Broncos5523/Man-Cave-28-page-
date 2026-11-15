@@ -19,11 +19,23 @@ import cbb_tournament_view
 os.chdir(original.GOLD)
 
 ORIGINAL_FIT="function fit(){const w=Math.min(innerWidth,innerHeight*9/16),h=w*16/9;Object.assign(stage.style,{width:w+'px',height:h+'px',left:(innerWidth-w)/2+'px',top:(innerHeight-h)/2+'px'});}"
-NEW_FIT="""function fit(){const mode=window.__MC_ONN_ROTATION__||'off';
-if(mode!=='off'&&innerWidth>innerHeight){
-const w=Math.min(innerHeight,innerWidth*9/16),h=w*16/9;
-Object.assign(stage.style,{width:w+'px',height:h+'px',left:'50%',top:'50%',transformOrigin:'center center',transform:'translate(-50%,-50%) rotate('+(mode==='ccw'?'-90':'90')+'deg)'});
-}else{const w=Math.min(innerWidth,innerHeight*9/16),h=w*16/9;Object.assign(stage.style,{width:w+'px',height:h+'px',left:(innerWidth-w)/2+'px',top:(innerHeight-h)/2+'px',transform:'none',transformOrigin:'center center'});}}"""
+NEW_FIT="""function fit(){
+const mode=window.__MC_ONN_ROTATION__||'off';
+const fill=window.__MC_TV_FIT__!=='contain';
+const rotated=mode!=='off'&&innerWidth>innerHeight;
+const viewWidth=rotated?innerHeight:innerWidth;
+const viewHeight=rotated?innerWidth:innerHeight;
+const w=Math.min(viewWidth,viewHeight*9/16),h=w*16/9;
+const scaleX=fill?viewWidth/w:1,scaleY=fill?viewHeight/h:1;
+const angle=rotated?' rotate('+(mode==='ccw'?'-90':'90')+'deg)':'';
+Object.assign(stage.style,{
+ width:w+'px',height:h+'px',left:'50%',top:'50%',
+ transformOrigin:'center center',
+ transform:'translate(-50%,-50%)'+angle+' scale('+scaleX.toFixed(5)+','+scaleY.toFixed(5)+')'
+});
+window.__MC_ONN_FIT_REPORT__={mode:mode,fill:fill,rotated:rotated,viewport:[innerWidth,innerHeight],
+  board:[w,h],scale:[scaleX,scaleY]};
+} }"""
 NHL_FETCH_SHIM = """<script>
 (function(){
  const original=window.fetch.bind(window);
@@ -162,7 +174,9 @@ class Handler(original.Handler):
             html=(APP/"production"/"player.html").read_text()
             anchor='<script defer src="/production/player.js"></script>'
             if html.count(anchor)!=1:return self.reply("Approved player anchor changed",status=500)
-            html=html.replace(anchor,"<script>window.__MC_ONN_ROTATION__="+json.dumps(choice)+";</script>"+anchor)
+            fitmode=parse_qs(p.query).get("fit",["fill"])[0]
+            if fitmode not in ("fill","contain"):fitmode="fill"
+            html=html.replace(anchor,"<script>window.__MC_ONN_ROTATION__="+json.dumps(choice)+";window.__MC_TV_FIT__="+json.dumps(fitmode)+";</script>"+anchor)
             return self.reply(html,"text/html; charset=utf-8")
         if path=="/production/player.js":
             js=(APP/"production"/"player.js").read_text()
