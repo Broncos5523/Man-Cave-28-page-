@@ -23,6 +23,9 @@ var groups=[
 ];
 for(var i=0;i<groups.length;i++)for(var j=0;j<groups[i].length;j++)valid[groups[i][j]]=true;
 var desired=null,held='',frame=null,missingLogged=false,hasFirstCommand=false,geometryReported='';
+// The approved wrestling player is already portrait 9:16 and has its own
+// rotation. Keep its inner rotation OFF; the existing Onn outer stage handles it.
+var wrestlingUrl='https://broncos5523.github.io/Inside-the-squared-circle/staging/?view=tv&mode=active&rotate=none';
 function report(event,detail){
  try{
   var xhr=new XMLHttpRequest();
@@ -43,7 +46,7 @@ function reconcile(){
   if(frame&&frame.parentNode)frame.parentNode.removeChild(frame);
   frame=null;held='';geometryReported='';return;
  }
- if(!valid[desired])return;
+ if(desired!=='wrestling'&&!valid[desired])return;
  var stage=getStage();
  if(!stage){
   if(!missingLogged){report('stage-not-ready',desired);missingLogged=true;}
@@ -53,7 +56,7 @@ function reconcile(){
  if(!frame){
   frame=document.createElement('iframe');
   frame.id='mc-tv3-single-board';
-  frame.title='Selected approved Man Cave team board';
+  frame.title='Selected Man Cave sports or wrestling board';
   frame.setAttribute('allowfullscreen','');
   frame.style.cssText='position:fixed;display:block;margin:0;padding:0;border:0;background:#05090f;z-index:2147483600;visibility:visible;opacity:1';
   frame.onload=function(){
@@ -82,12 +85,12 @@ function reconcile(){
  }
  if(held!==desired){
   held=desired;
-  frame.src='/production/board/'+encodeURIComponent(desired)+'?tv3=hold';
+  frame.src=desired==='wrestling'?wrestlingUrl:'/production/board/'+encodeURIComponent(desired)+'?tv3=hold';
   report('board-command-applied',desired);
  }
 }
 function receive(value){
- var newMode=(value&&value.type==='board'&&valid[value.board])?value.board:'rotation';
+ var newMode=(value&&value.type==='wrestling')?'wrestling':(value&&value.type==='board'&&valid[value.board])?value.board:'rotation';
  if(desired===newMode)return;
  desired=newMode;
  report('command-received',newMode);
