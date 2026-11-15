@@ -40,7 +40,16 @@ def main():
     # concatenated deterministically in original six-part ordering.
     shards=ROOT/"source-parts"
     pieces=[]
-    if shards.exists():
+    digests=[
+        ("part01","cb17ced4fc72221656d1e2c228ea0d9d8c5c82bddcb56cd6f487caa1432c7a8a"),
+        ("part02","967b276e7fdde80a31f43733119f640c430ff0b5f62271e56b53577c6a86563e"),
+        ("part03","a6ec1cec40ddc594b383418128ac9ef167353c3e6b71248e5c1c565544777eab"),
+        ("part04","394e7e437b52ada6bb5bc28aa7b3c500f71322123f6860dbae0a5415508e99d0"),
+        ("part05","b004546dcedf60a887b3fc749148af9525b7af0750a1b0bcd4f23ff742a2f838"),
+        ("part06","893fd3077d9b769a0ba146502d3fe726cbecd9655701e52c60e33f7a7160b9bc")
+    ]
+    have_signed_parts=all(os.environ.get("MANCAVE_SOURCE_PART_%02d"%i) for i in range(1,7))
+    if shards.exists() and not have_signed_parts:
         for i in range(1,7):
             prefix="approved.zip.part"+str(i).zfill(2)+"."
             group=sorted(p for p in shards.iterdir() if p.name.startswith(prefix)
