@@ -80,6 +80,21 @@ class Handler(original.Handler):
             return self.reply('{"ok":true,"boards":28,"mode":"cloud"}',"application/json")
         if path in ("/onn","/onn/") or (path=="/" and not parse_qs(p.query).get("rotate")):
             return self.reply(MENU,"text/html; charset=utf-8")
+        # Original approved v8l boards use these versioned root-level runtime
+        # scripts to update ALL league/team pages from /api/board/<id>.
+        # Earlier cloud allowlist accidentally returned 404 for every script,
+        # leaving October snapshot HTML visible indefinitely.
+        if path=="/runtime.css":
+            file=original.GOLD/"runtime.css"
+            return self.reply(file.read_bytes(),"text/css; charset=utf-8")
+        if path.startswith("/runtime_") and path.endswith(".js"):
+            import re
+            if not re.fullmatch(r"/runtime_[a-zA-Z0-9_-]+\\.js",path):
+                return self.reply("Invalid runtime path",status=404)
+            file=original.GOLD/path.lstrip("/")
+            if not file.is_file():
+                return self.reply("Runtime script not found",status=404)
+            return self.reply(file.read_bytes(),"application/javascript; charset=utf-8")
         if path=="/production/api/page4-live":
             board=parse_qs(p.query).get("board",[""])[0]
             if board not in page4_live.TEAMS:
@@ -96,7 +111,7 @@ class Handler(original.Handler):
             return self.reply((HERE/"live-page4-basketball.js").read_bytes(),"application/javascript")
         if path.startswith("/production/board/"):
             bid=path.rsplit("/",1)[-1]
-            if bid in page4_live.TEAMS or bid in ('page4_bruins','page2_nfl'):
+            if bid in page4_live.TEAMS or bid=='page4_bruins':
                 try:
                     html=original.adapt_board(original.BY_ID[bid])
                     if bid in page4_live.TEAMS:
@@ -104,9 +119,6 @@ class Handler(original.Handler):
                     elif bid=='page4_bruins':
                         if html.count('<head>')!=1:raise RuntimeError('Approved Bruins head anchor changed')
                         html=html.replace('<head>','<head>'+NHL_FETCH_SHIM,1)
-                    elif bid=='page2_nfl':
-                        if html.count('</body>')!=1:raise RuntimeError('Approved NFL page 2 body anchor changed')
-                        html=html.replace('</body>','<script defer src="/production/live-nfl-page2.js?v=20261115-1"></script></body>',1)
                     return self.reply(html,"text/html; charset=utf-8")
                 except Exception as e:
                     print("Page 4 cloud data-only adapter error:",bid,str(e)[:200],flush=True)
