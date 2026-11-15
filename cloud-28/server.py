@@ -61,6 +61,36 @@ h2{color:#f1c76b;letter-spacing:.17em}h1{font-size:clamp(30px,6vw,60px)}a{displa
 <a href="/?rotate=cw">ROTATE CLOCKWISE 90°</a><a href="/?rotate=ccw">ROTATE COUNTERCLOCKWISE 90°</a><a href="/?rotate=off">ALREADY PORTRAIT / NO ROTATION</a>
 <p>Original v8l design · 30 seconds per page · 7-second player spotlights</p></main></body></html>'''
 
+
+SCREEN_EDGE_DEBUG = """<style id="mc-edge-debug-css">
+#mc-edge-border{position:fixed;inset:0;box-sizing:border-box;border:8px solid #00ff75;
+pointer-events:none;z-index:2147483646}
+#mc-edge-info{position:fixed;left:14px;top:14px;z-index:2147483647;
+max-width:calc(100vw - 28px);box-sizing:border-box;background:rgba(0,0,0,.93);color:#fff;
+font:700 16px/1.45 Arial,sans-serif;padding:10px 12px;border:1px solid #00ff75;
+white-space:pre-wrap;pointer-events:none}
+</style><div id="mc-edge-border"></div><div id="mc-edge-info">Measuring display...</div>
+<script>
+(function(){
+  var info=document.getElementById('mc-edge-info');
+  function measure(){
+    var rect=null,stage=document.getElementById('stage');
+    if(stage&&stage.getBoundingClientRect){rect=stage.getBoundingClientRect();}
+    var fit=window.__MC_ONN_FIT_REPORT__||{};
+    var msg='GREEN BORDER = BROWSER VIEWPORT\\n'+
+      'Viewport: '+innerWidth+' x '+innerHeight+'\\n'+
+      'Screen: '+screen.width+' x '+screen.height+'\\n'+
+      'Orientation: '+(window.__MC_ONN_ROTATION__||'off')+'\\n'+
+      'Fill: '+(window.__MC_TV_FIT__||'fill');
+    if(rect)msg+='\\nStage: '+Math.round(rect.width)+' x '+Math.round(rect.height);
+    if(fit.scale)msg+='\\nStage scale: '+fit.scale.join(' x ');
+    info.textContent=msg;
+  }
+  measure();setTimeout(measure,1300);setTimeout(measure,4500);
+  window.addEventListener('resize',measure);
+})();
+</script>"""
+
 class Handler(original.Handler):
     def end_headers(self):
         # The immutable, checksum-verified board HTML can be cached for a day
@@ -95,7 +125,10 @@ class Handler(original.Handler):
         if path=="/healthz":
             return self.reply('{"ok":true,"boards":28,"mode":"cloud"}',"application/json")
         if path in ("/onn","/onn/") or (path=="/" and not parse_qs(p.query).get("rotate")):
-            return self.reply(MENU,"text/html; charset=utf-8")
+            menu=MENU
+            if parse_qs(p.query).get("debug",[""])[0]=="1":
+                menu=menu.replace('href="/?rotate=','href="/?debug=1&rotate=')
+            return self.reply(menu,"text/html; charset=utf-8")
         # Original approved v8l boards use these versioned root-level runtime
         # scripts to update ALL league/team pages from /api/board/<id>.
         # Earlier cloud allowlist accidentally returned 404 for every script,
@@ -185,7 +218,10 @@ class Handler(original.Handler):
             if html.count(anchor)!=1:return self.reply("Approved player anchor changed",status=500)
             fitmode=parse_qs(p.query).get("fit",["fill"])[0]
             if fitmode not in ("fill","contain"):fitmode="fill"
-            html=html.replace(anchor,"<script>window.__MC_ONN_ROTATION__="+json.dumps(choice)+";window.__MC_TV_FIT__="+json.dumps(fitmode)+";</script>"+anchor)
+            html=html.replace(anchor,"<style id='mc-tv-full-viewport'>html,body{margin:0!important;padding:0!important;overflow:hidden!important}</style><script>window.__MC_ONN_ROTATION__="+json.dumps(choice)+";window.__MC_TV_FIT__="+json.dumps(fitmode)+";</script>"+anchor)
+            if parse_qs(p.query).get("debug",[""])[0]=="1":
+                if html.count("</body>")!=1:return self.reply("Approved player debug insertion anchor changed",status=500)
+                html=html.replace("</body>",SCREEN_EDGE_DEBUG+"</body>",1)
             return self.reply(html,"text/html; charset=utf-8")
         if path=="/production/player.js":
             js=(APP/"production"/"player.js").read_text()
