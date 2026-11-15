@@ -3,7 +3,7 @@
 import json,os,sys,time
 from pathlib import Path
 from urllib.parse import urlsplit,parse_qs
-from http.server import ThreadingHTTPServer
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 HERE=Path(__file__).resolve().parent
 APP=HERE/"source"/"MAN_CAVE_28_BOARD_FINAL_PRODUCTION_v1"
@@ -27,6 +27,18 @@ h2{color:#f1c76b;letter-spacing:.17em}h1{font-size:clamp(30px,6vw,60px)}a{displa
 <p>Original v8l design · 30 seconds per page · 7-second player spotlights</p></main></body></html>'''
 
 class Handler(original.Handler):
+    def end_headers(self):
+        # The immutable, checksum-verified board HTML can be cached for a day
+        # so each Onn rotation doesn't re-download 200MB of approved artwork.
+        # Live scoreboard/API requests remain uncached.
+        path=urlsplit(self.path).path
+        immutable=(path.startswith(('/production/board/','/hosted/','/boards/','/remote/'))
+                   or path in ('/production/spotlight-state.js','/production/board-runtime.js'))
+        if self.command=='GET' and immutable:
+            self.send_header('Cache-Control','public, max-age=86400')
+            self.send_header('X-Content-Type-Options','nosniff')
+            return SimpleHTTPRequestHandler.end_headers(self)
+        return super().end_headers()
     def reply(self,body,ct="text/plain; charset=utf-8",status=200):
         if isinstance(body,str):body=body.encode()
         self.send_response(status)
