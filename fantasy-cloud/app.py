@@ -306,6 +306,25 @@ def worker():
 def authorized():
     return bool(PIN and len(PIN)>=8 and session.get("fantasy_view") is True)
 
+def oauth_config_checks():
+    """Safe validation; never include actual credentials in output or logs."""
+    id_shape=CLIENT_ID.startswith("dj0y") and len(CLIENT_ID)>=45 and not any(c.isspace() for c in CLIENT_ID)
+    secret_shape=len(CLIENT_SECRET)>=24 and not any(c.isspace() for c in CLIENT_SECRET)
+    callback_expected="https://man-cave-fantasy-cloud.onrender.com/oauth/yahoo/callback"
+    return {"client_id_shape":id_shape,
+            "client_secret_shape":secret_shape,
+            "callback_exact":REDIRECT_URI==callback_expected,
+            "store_supplied":bool(REDIS_URL)}
+
+def oauth_config_warnings():
+    checks=oauth_config_checks()
+    return [msg for key,msg in (
+       ("client_id_shape","YAHOO_CLIENT_ID value doesn't look like a Yahoo Consumer Key. Check the RIGHT-HAND VALUE field, not the KEY field."),
+       ("client_secret_shape","YAHOO_CLIENT_SECRET value looks incomplete. Check the RIGHT-HAND VALUE field."),
+       ("callback_exact","Yahoo callback does not match the Fantasy Cloud address."),
+       ("store_supplied","Private Redis URL is missing."),
+    ) if not checks[key]]
+
 def setup_missing():
     """Only show configuration KEY NAMES; never display any secret values."""
     missing=[]
@@ -334,7 +353,12 @@ def setup_page(message="",error=False):
                 body+="<p style='color:#ffd46a;font-family:monospace;word-break:break-word'>"+", ".join(missing)+"</p>"
             body+="<p>Do not open the Yahoo callback URL directly. Use Connect Yahoo only after configuration is complete.</p>"
         elif token_get() is None:
-            body+="<form action='/connect/yahoo' method='post'><button type='submit'>Connect Yahoo Fantasy</button></form>"
+            warnings=oauth_config_warnings()
+            if warnings:
+                body+="<p style='color:#ffd46a'>"+(" ".join(warnings))+"</p>"
+            else:
+                body+="<form action='/connect/yahoo' method='post'><button type='submit'>Connect Yahoo Fantasy</button></form>"
+                body+="<p>Credential format checks passed, but Yahoo may still reject an incorrect Client ID, an unmatched app redirect, or unprovisioned access.</p>"
         else:body+="<p>Yahoo account authorized. Live data will appear when API access is provisioned.</p>"
     if message:body+="<p class='message'>"+("ERROR: " if error else "")+str(message).replace("<","&lt;")+"</p>"
     return """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -402,6 +426,8 @@ def data():
 def connect():
     if not authorized():return jsonify({"error":"not authorized"}),401
     if not ready():return Response(setup_page("Cloud secrets and persistent storage must be configured first.",True),status=503,mimetype="text/html")
+    if oauth_config_warnings():
+        return Response(setup_page("Correct the credential fields highlighted above before connecting Yahoo.",True),status=503,mimetype="text/html")
     try:
         store().ping()
     except redis.RedisError:
@@ -437,6 +463,10 @@ def callback():
     except (requests.RequestException,ValueError,redis.RedisError,RuntimeError):
         # Do not echo response body, authorization code or tokens.
         return Response(setup_page("Yahoo connection could not be finalized. Check provisioning and callback settings.",True),status=502,mimetype="text/html")
+
+# Runtime preflight reports ONLY boolean validation flags, never any credential values.
+# This allows troubleshooting from Render logs without asking users to expose secrets.
+print("Yahoo OAuth preflight (shape only): "+str(oauth_config_checks()),flush=True)
 
 def start_worker():
     global worker_started
