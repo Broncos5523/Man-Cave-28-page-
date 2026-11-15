@@ -175,6 +175,8 @@ class Handler(original.Handler):
                 return self.reply('{"error":"Current-season ESPN feed temporarily unavailable"}',"application/json",503)
         if path=="/production/live-nfl-page2.js":
             return self.reply((HERE/"live-nfl-page2.js").read_bytes(),"application/javascript")
+        if path=="/production/tv3-remote.js":
+            return self.reply((HERE/"tv3-remote.js").read_bytes(),"application/javascript")
         if path=="/production/board-runtime.js":
             js=(APP/"production"/"board-runtime.js").read_text()
             # Some TV browsers throttle requestAnimationFrame for hidden
@@ -222,6 +224,11 @@ class Handler(original.Handler):
             if parse_qs(p.query).get("debug",[""])[0]=="1":
                 if html.count("</body>")!=1:return self.reply("Approved player debug insertion anchor changed",status=500)
                 html=html.replace("</body>",SCREEN_EDGE_DEBUG+"</body>",1)
+            # The existing ?rotate=... URL stays identical. Optional remote listener
+            # follows /screens/third; original 28-page rotation runs unchanged
+            # when no command or Firebase connection is available.
+            if html.count("</body>")!=1:return self.reply("Approved player TV 3 insertion anchor changed",status=500)
+            html=html.replace("</body>",'<script type="module" src="/production/tv3-remote.js"></script></body>',1)
             return self.reply(html,"text/html; charset=utf-8")
         if path=="/production/player.js":
             js=(APP/"production"/"player.js").read_text()
