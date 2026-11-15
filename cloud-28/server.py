@@ -33,6 +33,7 @@ Object.assign(stage.style,{
  transformOrigin:'center center',
  transform:'translate(-50%,-50%)'+angle+' scale('+scaleX.toFixed(5)+','+scaleY.toFixed(5)+')'
 });
+window.__MC_ONN_STAGE_ELEMENT__=stage;
 window.__MC_ONN_FIT_REPORT__={mode:mode,fill:fill,rotated:rotated,viewport:[innerWidth,innerHeight],
   board:[w,h],scale:[scaleX,scaleY]};
 }"""
@@ -228,7 +229,7 @@ class Handler(original.Handler):
             # follows /screens/third; original 28-page rotation runs unchanged
             # when no command or Firebase connection is available.
             if html.count("</body>")!=1:return self.reply("Approved player TV 3 insertion anchor changed",status=500)
-            html=html.replace("</body>",'<script type="module" src="/production/tv3-remote.js"></script></body>',1)
+            html=html.replace("</body>",'<script defer src="/production/tv3-remote.js"></script></body>',1)
             return self.reply(html,"text/html; charset=utf-8")
         if path=="/production/player.js":
             js=(APP/"production"/"player.js").read_text()
@@ -262,6 +263,23 @@ class Handler(original.Handler):
         return super().do_GET()
     def do_POST(self):
         path=urlsplit(self.path).path
+        if path=="/production/api/tv3-report":
+            # Browser compatibility telemetry only: never log tokens, addresses,
+            # database values or user IDs. No changes to any board/player state.
+            try:
+                size=int(self.headers.get("Content-Length","0"))
+                if size<2 or size>256:return self.reply("Invalid size",status=400)
+                body=json.loads(self.rfile.read(size))
+                event=body.get("event","")
+                detail=body.get("detail","")
+                if not (isinstance(event,str) and event.replace("-","").isalnum()
+                        and len(event)<=40 and isinstance(detail,str)
+                        and len(detail)<=90):
+                    return self.reply("Invalid event",status=400)
+                print("TV3 REPORT",event,detail,flush=True)
+            except (ValueError,TypeError,KeyError,UnicodeError,OSError):
+                return self.reply("Invalid data",status=400)
+            return self.reply('{"ok":true}',"application/json")
         if path not in ("/production/api/state","/production/api/heartbeat"):
             return self.reply("Not found",status=404)
         origin=self.headers.get("Origin","")
