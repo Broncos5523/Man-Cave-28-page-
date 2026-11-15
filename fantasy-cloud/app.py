@@ -96,6 +96,11 @@ def yahoo_get(path):
     response=requests.get(YAHOO_BASE+path,params={"format":"json"},
       headers={"Authorization":"Bearer "+token,"Accept":"application/json"},
       timeout=22)
+    if response.status_code>=400:
+        # Only fixed resource categories and HTTP status, never query URLs,
+        # OAuth tokens, league IDs, or provider response bodies.
+        kind="league" if path.startswith("/league/") else ("team" if path.startswith("/team/") else "other")
+        print("Fantasy Yahoo API status:",response.status_code,"resource:",kind,flush=True)
     response.raise_for_status()
     return response.json()
 
