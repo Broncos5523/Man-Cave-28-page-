@@ -45,7 +45,7 @@ def patch_html(board,html):
         html=html.replace(NBA_BOOT,'renderLeaders();renderSpot(0,false);updateTicker();',1)
         html=html.replace(NBA_TIMER,'/* live current-season stats owned by cloud data adapter */',1)
         end='</script>'
-        if html.count(end)!=2:raise RuntimeError('Approved NBA script structure changed')
+        if html.count(end)<3:raise RuntimeError('Approved NBA script structure changed')
         offset=html.rfind(end)
         html=html[:offset]+'\n'+NBA_APPLY+html[offset:]
     elif board=='page4_arizona_cbb':
