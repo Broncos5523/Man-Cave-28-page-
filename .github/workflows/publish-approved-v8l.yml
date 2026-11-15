@@ -1,0 +1,46 @@
+name: Publish one-time verified original v8l archive
+on:
+  push:
+    paths:
+      - ".github/workflows/publish-approved-v8l.yml"
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Fetch six short-lived approved archive parts and validate all SHA256 hashes
+        run: |
+          python - <<'PY'
+          import os,urllib.request,hashlib,concurrent.futures,pathlib
+          parts=[{"n":"01","size":41943040,"sha":"cb17ced4fc72221656d1e2c228ea0d9d8c5c82bddcb56cd6f487caa1432c7a8a","url":"https://sdmntprcentralus.oaiusercontent.com/files/00000000-7e34-81f5-93ff-31572bfa5c40/raw?se=2026-11-15T03%3A49%3A37Z&sp=r&sv=2026-06-06&sr=b&scid=d0450498-4e42-5f44-b430-df7762721a84&skoid=77636ecc-ad8d-44df-baa7-163b524a0261&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-11-14T11%3A38%3A16Z&ske=2026-11-15T11%3A38%3A16Z&sks=b&skv=2026-06-06&sig=ELLj5HxA92zB1VORVlBNRE6us/FrFzQmaXknZFDn4CY%3D"},{"n":"02","size":41943040,"sha":"967b276e7fdde80a31f43733119f640c430ff0b5f62271e56b53577c6a86563e","url":"https://sdmntprcentralus.oaiusercontent.com/files/00000000-0ddc-81f5-9814-31ceb08278fd/raw?se=2026-11-15T03%3A49%3A34Z&sp=r&sv=2026-06-06&sr=b&scid=1b106b64-3cc8-565f-a5a3-d1ebcf6b3ee5&skoid=77636ecc-ad8d-44df-baa7-163b524a0261&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-11-14T18%3A32%3A32Z&ske=2026-11-15T18%3A32%3A32Z&sks=b&skv=2026-06-06&sig=QWxXPDbiQlnSTqIZwrNGt0/IQ4lOJRaCV3m9K6tYyKY%3D"},{"n":"03","size":41943040,"sha":"a6ec1cec40ddc594b383418128ac9ef167353c3e6b71248e5c1c565544777eab","url":"https://sdmntprcentralus.oaiusercontent.com/files/00000000-e7bc-81f5-bc85-8e9181ba62e8/raw?se=2026-11-15T03%3A49%3A34Z&sp=r&sv=2026-06-06&sr=b&scid=bcbe3570-fe54-52b2-8a7d-f7b9759199fd&skoid=77636ecc-ad8d-44df-baa7-163b524a0261&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-11-14T18%3A27%3A38Z&ske=2026-11-15T18%3A27%3A38Z&sks=b&skv=2026-06-06&sig=BajDnPfQRk7Z5WiJs3FrqWl10AD%2BWVxo0BStqQflHyE%3D"},{"n":"04","size":41943040,"sha":"394e7e437b52ada6bb5bc28aa7b3c500f71322123f6860dbae0a5415508e99d0","url":"https://sdmntprcentralus.oaiusercontent.com/files/00000000-c88c-81f5-b919-837611085e5a/raw?se=2026-11-15T03%3A49%3A34Z&sp=r&sv=2026-06-06&sr=b&scid=0399b755-428b-5e03-a35f-56347e14f357&skoid=77636ecc-ad8d-44df-baa7-163b524a0261&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-11-14T18%3A22%3A43Z&ske=2026-11-15T18%3A22%3A43Z&sks=b&skv=2026-06-06&sig=OnvSeah7SXWyjiLk3ZACmwRgOLwtA60QF%2BDNdiUJk34%3D"},{"n":"05","size":41943040,"sha":"b004546dcedf60a887b3fc749148af9525b7af0750a1b0bcd4f23ff742a2f838","url":"https://sdmntprcentralus.oaiusercontent.com/files/00000000-e7d4-81f5-823c-c9ad6274670e/raw?se=2026-11-15T03%3A49%3A33Z&sp=r&sv=2026-06-06&sr=b&scid=25b41886-5dbf-512a-a51c-363af3290d3b&skoid=77636ecc-ad8d-44df-baa7-163b524a0261&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-11-14T18%3A27%3A36Z&ske=2026-11-15T18%3A27%3A36Z&sks=b&skv=2026-06-06&sig=fWANbKEg1LKs70QO1fv0nKCpHzm2G7d0TKbQBA/2sFw%3D"},{"n":"06","size":8833658,"sha":"893fd3077d9b769a0ba146502d3fe726cbecd9655701e52c60e33f7a7160b9bc","url":"https://sdmntprcentralus.oaiusercontent.com/files/00000000-f604-81f5-8a94-b6f193e3a08f/raw?se=2026-11-15T03%3A49%3A37Z&sp=r&sv=2026-06-06&sr=b&scid=386616fa-4d22-56d6-adbb-5222ed6bfe82&skoid=77636ecc-ad8d-44df-baa7-163b524a0261&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-11-14T18%3A32%3A32Z&ske=2026-11-15T18%3A32%3A32Z&sks=b&skv=2026-06-06&sig=dF5%2BEyM6BAH4Dr8FW1JR%2BRF9vpkd%2BYTIwQMOWA3rW/o%3D"}]
+          expected="e6651aa3db2dae42f38d693f1e6690de7009a0a6e34ed6ee0bc2a26cabbeed3f"
+          root=pathlib.Path("/tmp/mancave-original")
+          root.mkdir(parents=True,exist_ok=True)
+          def get(p):
+           target=root/("part"+p["n"])
+           h=hashlib.sha256()
+           with urllib.request.urlopen(urllib.request.Request(p["url"],headers={"User-Agent":"ManCave-v8l"}),timeout=90) as resp,target.open("wb") as out:
+            for b in iter(lambda:resp.read(1024*1024),b""):
+             h.update(b);out.write(b)
+           assert target.stat().st_size==p["size"] and h.hexdigest()==p["sha"],p["n"]
+           print("Verified part",p["n"],flush=True)
+           return target
+          with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+           paths=list(pool.map(get,parts))
+          zipfile=root/"approved-v8l.zip"
+          with zipfile.open("wb") as out:
+           for p in paths:
+            with p.open("rb") as f:
+             for b in iter(lambda:f.read(1024*1024),b""):out.write(b)
+          h=hashlib.sha256(zipfile.read_bytes()).hexdigest()
+          assert h==expected,(h,expected)
+          print("Full original ZIP verified",zipfile.stat().st_size,flush=True)
+          
+          PY
+      - name: Publish durable public GitHub Release asset for Render builds
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create approved-v8l-20261018 /tmp/mancave-original/approved-v8l.zip --repo "$GITHUB_REPOSITORY" --title "Approved 28 Board Production v8l — Oct 18, 2026" --notes "Unmodified, SHA256-verified original 28-board production ZIP, approved for public hosting by repository owner." --latest=false
