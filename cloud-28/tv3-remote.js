@@ -22,7 +22,7 @@ var groups=[
  ['page1_cbb','page2_cbb','page3_arizona_cbb','page4_arizona_cbb']
 ];
 for(var i=0;i<groups.length;i++)for(var j=0;j<groups[i].length;j++)valid[groups[i][j]]=true;
-var desired=null,held='',frame=null,missingLogged=false,hasFirstCommand=false;
+var desired=null,held='',frame=null,missingLogged=false,hasFirstCommand=false,geometryReported='';
 function report(event,detail){
  try{
   var xhr=new XMLHttpRequest();
@@ -41,7 +41,7 @@ function getStage(){
 function reconcile(){
  if(!desired||desired==='rotation'){
   if(frame&&frame.parentNode)frame.parentNode.removeChild(frame);
-  frame=null;held='';return;
+  frame=null;held='';geometryReported='';return;
  }
  if(!valid[desired])return;
  var stage=getStage();
@@ -55,11 +55,31 @@ function reconcile(){
   frame.id='mc-tv3-single-board';
   frame.title='Selected approved Man Cave team board';
   frame.setAttribute('allowfullscreen','');
-  frame.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;border:0;background:#05090f;z-index:2147483600;display:block';
-  frame.onload=function(){report('board-loaded',held);};
+  frame.style.cssText='position:fixed;display:block;margin:0;padding:0;border:0;background:#05090f;z-index:2147483600;visibility:visible;opacity:1';
+  frame.onload=function(){
+    report('board-loaded',held);
+    var box=frame.getBoundingClientRect();
+    report('frame-bounds',Math.round(box.width)+'x'+Math.round(box.height)+' at '+Math.round(box.left)+','+Math.round(box.top));
+  };
   frame.onerror=function(){report('board-error',held);};
  }
- if(frame.parentNode!==stage)stage.appendChild(frame);
+ // Do not nest inside the original player stage. Its swap routine controls
+ // all stage children and may remove or cover a nested remote iframe.
+ // Use a top-level sibling and mirror its EXACT CSS size/rotation/scale.
+ // This preserves the approved artwork without zooming/cropping.
+ if(frame.parentNode!==document.body)document.body.appendChild(frame);
+ var css=stage.style;
+ frame.style.width=css.width||'100%';
+ frame.style.height=css.height||'100%';
+ frame.style.left=css.left||'0';
+ frame.style.top=css.top||'0';
+ frame.style.transformOrigin=css.transformOrigin||'center center';
+ frame.style.transform=css.transform||'none';
+ var signature=[frame.style.width,frame.style.height,frame.style.left,frame.style.top,frame.style.transform].join('|');
+ if(signature!==geometryReported){
+  geometryReported=signature;
+  report('top-layer-ready',Math.round(frame.getBoundingClientRect().width)+'x'+Math.round(frame.getBoundingClientRect().height));
+ }
  if(held!==desired){
   held=desired;
   frame.src='/production/board/'+encodeURIComponent(desired)+'?tv3=hold';
