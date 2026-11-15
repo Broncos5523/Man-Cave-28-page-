@@ -1,0 +1,15 @@
+# Man Cave Sports Book — isolated Onn-ready cloud player.
+# Staged only; no service is created until the verified source package is available.
+services:
+  - type: web
+    name: man-cave-28-board-player
+    runtime: python
+    plan: free
+    region: virginia
+    buildCommand: python cloud-28/prepare.py
+    startCommand: python cloud-28/server.py
+    healthCheckPath: /healthz
+    autoDeployTrigger: off
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
