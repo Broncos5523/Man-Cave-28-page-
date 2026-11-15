@@ -14,6 +14,7 @@ import production_server as original
 import live_page4_current as page4_live
 import page4_patch
 import draft_watch_live
+import bracketology_source
 os.chdir(original.GOLD)
 
 ORIGINAL_FIT="function fit(){const w=Math.min(innerWidth,innerHeight*9/16),h=w*16/9;Object.assign(stage.style,{width:w+'px',height:h+'px',left:(innerWidth-w)/2+'px',top:(innerHeight-h)/2+'px'});}"
@@ -59,7 +60,7 @@ class Handler(original.Handler):
         # repaired basketball boards or NFL Page 2 persist for 24 hours.
         if path in ('/production/board/page4_celtics','/production/board/page4_arizona_cbb',
                     '/production/board/page4_bruins','/production/board/page2_nfl',
-                    '/production/board/page2_cbb'):
+                    '/production/board/page2_cbb','/production/board/page1_cbb'):
             immutable=False
         if self.command=='GET' and immutable:
             self.send_header('Cache-Control','public, max-age=86400')
@@ -97,6 +98,14 @@ class Handler(original.Handler):
             if not file.is_file():
                 return self.reply("Runtime script not found",status=404)
             return self.reply(file.read_bytes(),"application/javascript; charset=utf-8")
+        if path=="/production/api/bracketology-status":
+            try:
+                return self.reply(json.dumps(bracketology_source.cached(),separators=(',',':')),"application/json")
+            except Exception as e:
+                print("ESPN Bracketology metadata check unavailable:",type(e).__name__,str(e)[:160],flush=True)
+                return self.reply('{"status":"unavailable","completeProjectedBracket":false}',"application/json",503)
+        if path=="/production/bracketology-monitor.js":
+            return self.reply((HERE/"bracketology-monitor.js").read_bytes(),"application/javascript")
         if path=="/production/api/draft-watch-stats":
             try:
                 return self.reply(json.dumps(draft_watch_live.cached(),separators=(',',':')),"application/json")
@@ -121,7 +130,7 @@ class Handler(original.Handler):
             return self.reply((HERE/"live-page4-basketball.js").read_bytes(),"application/javascript")
         if path.startswith("/production/board/"):
             bid=path.rsplit("/",1)[-1]
-            if bid in page4_live.TEAMS or bid in ('page4_bruins','page2_cbb'):
+            if bid in page4_live.TEAMS or bid in ('page4_bruins','page2_cbb','page1_cbb'):
                 try:
                     html=original.adapt_board(original.BY_ID[bid])
                     if bid in page4_live.TEAMS:
@@ -132,6 +141,9 @@ class Handler(original.Handler):
                     elif bid=='page2_cbb':
                         if html.count('</body>')!=1:raise RuntimeError('Approved Draft Watch body anchor changed')
                         html=html.replace('</body>','<script defer src="/production/live-draft-watch.js?v=20261115-1"></script></body>',1)
+                    elif bid=='page1_cbb':
+                        if html.count('</body>')!=1:raise RuntimeError('Approved NCAA bracketology monitor body anchor changed')
+                        html=html.replace('</body>','<script defer src="/production/bracketology-monitor.js?v=20261115-1"></script></body>',1)
                     return self.reply(html,"text/html; charset=utf-8")
                 except Exception as e:
                     print("Page 4 cloud data-only adapter error:",bid,str(e)[:200],flush=True)
@@ -156,7 +168,7 @@ class Handler(original.Handler):
             frame_marker="frame.src='/production/board/'+encodeURIComponent(board.id);"
             if js.count(frame_marker)!=1:
                 return self.reply("Approved player frame source changed",status=500)
-            js=js.replace(frame_marker,"frame.src='/production/board/'+encodeURIComponent(board.id)+(['page4_celtics','page4_arizona_cbb','page4_bruins','page2_nfl','page2_cbb'].includes(board.id)?'?stats=20261115-v3':'');")
+            js=js.replace(frame_marker,"frame.src='/production/board/'+encodeURIComponent(board.id)+(['page4_celtics','page4_arizona_cbb','page4_bruins','page2_nfl','page2_cbb','page1_cbb'].includes(board.id)?'?stats=20261115-v4':'');")
             return self.reply(js,"application/javascript")
         allowed=path in ("/production","/production/","/production/boards.json","/production/api/health","/production/diagnostics","/review","/proxy")
         allowed=allowed or path.startswith(("/api/board/","/production/board/","/hosted/","/boards/","/remote/"))
