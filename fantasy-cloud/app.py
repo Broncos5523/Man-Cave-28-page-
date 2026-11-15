@@ -306,6 +306,16 @@ def worker():
 def authorized():
     return bool(PIN and len(PIN)>=8 and session.get("fantasy_view") is True)
 
+def setup_missing():
+    """Only show configuration KEY NAMES; never display any secret values."""
+    missing=[]
+    if not CLIENT_ID:missing.append("YAHOO_CLIENT_ID")
+    if not CLIENT_SECRET:missing.append("YAHOO_CLIENT_SECRET")
+    if not REDIRECT_URI.startswith("https://"):missing.append("YAHOO_REDIRECT_URI")
+    if not LEAGUE_ID.isdigit():missing.append("YAHOO_LEAGUE_ID")
+    if not REDIS_URL:missing.append("FANTASY_REDIS_URL")
+    return missing
+
 def setup_page(message="",error=False):
     body=("<h2>MAN CAVE SPORTS BOOK</h2><h1>YAHOO FANTASY CLOUD</h1>"
           "<p>Your original V24.8 fantasy graphics are preserved.</p>")
@@ -318,7 +328,11 @@ def setup_page(message="",error=False):
     else:
         body+="<p>Dashboard unlocked.</p><p><a href='/'>Open preserved V24.8 dashboard</a></p>"
         if not ready():
-            body+="<p>Yahoo credentials, callback or private storage are not configured yet.</p>"
+            body+="<p>Live Yahoo connection is not configured yet. Add these keys under Render's Fantasy Cloud Environment settings:</p>"
+            missing=setup_missing()
+            if missing:
+                body+="<p style='color:#ffd46a;font-family:monospace;word-break:break-word'>"+", ".join(missing)+"</p>"
+            body+="<p>Do not open the Yahoo callback URL directly. Use Connect Yahoo only after configuration is complete.</p>"
         elif token_get() is None:
             body+="<form action='/connect/yahoo' method='post'><button type='submit'>Connect Yahoo Fantasy</button></form>"
         else:body+="<p>Yahoo account authorized. Live data will appear when API access is provisioned.</p>"
@@ -401,6 +415,8 @@ def connect():
 @app.get("/oauth/yahoo/callback")
 def callback():
     if not authorized():return Response(setup_page("Please unlock the dashboard before connecting Yahoo.",True),status=403,mimetype="text/html")
+    if not ready():
+        return Response(setup_page("Yahoo is not connected yet. Complete the missing Render settings listed above; the callback URL is not a login link.",False),status=503,mimetype="text/html")
     state=session.pop("yahoo_oauth_state","")
     if not state or not hmac.compare_digest(state,request.args.get("state","")):
         return Response(setup_page("Yahoo connection state did not match. Retry from Setup.",True),status=400,mimetype="text/html")
