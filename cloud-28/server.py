@@ -89,7 +89,7 @@ class Handler(original.Handler):
             return self.reply(file.read_bytes(),"text/css; charset=utf-8")
         if path.startswith("/runtime_") and path.endswith(".js"):
             import re
-            if not re.fullmatch(r"/runtime_[a-zA-Z0-9_-]+\\.js",path):
+            if not re.fullmatch(r"/runtime_[a-zA-Z0-9_-]+\.js",path):
                 return self.reply("Invalid runtime path",status=404)
             file=original.GOLD/path.lstrip("/")
             if not file.is_file():
