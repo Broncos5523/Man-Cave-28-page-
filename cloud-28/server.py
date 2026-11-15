@@ -35,7 +35,7 @@ Object.assign(stage.style,{
 });
 window.__MC_ONN_FIT_REPORT__={mode:mode,fill:fill,rotated:rotated,viewport:[innerWidth,innerHeight],
   board:[w,h],scale:[scaleX,scaleY]};
-} }"""
+}"""
 NHL_FETCH_SHIM = """<script>
 (function(){
  const original=window.fetch.bind(window);
