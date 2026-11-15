@@ -11,6 +11,8 @@ if not (APP/"production_server.py").is_file():
     raise SystemExit("Approved archive unavailable. The cloud build must first run prepare.py.")
 sys.path.insert(0,str(APP))
 import production_server as original
+import live_page4_current as page4_live
+import page4_patch
 os.chdir(original.GOLD)
 
 ORIGINAL_FIT="function fit(){const w=Math.min(innerWidth,innerHeight*9/16),h=w*16/9;Object.assign(stage.style,{width:w+'px',height:h+'px',left:(innerWidth-w)/2+'px',top:(innerHeight-h)/2+'px'});}"
@@ -34,6 +36,10 @@ class Handler(original.Handler):
         path=urlsplit(self.path).path
         immutable=(path.startswith(('/production/board/','/hosted/','/boards/','/remote/'))
                    or path in ('/production/spotlight-state.js','/production/board-runtime.js'))
+        # Modified only in transit; never let a stale on-stick copy of the
+        # repaired basketball boards or NFL Page 2 persist for 24 hours.
+        if path in ('/production/board/page4_celtics','/production/board/page4_arizona_cbb'):
+            immutable=False
         if self.command=='GET' and immutable:
             self.send_header('Cache-Control','public, max-age=86400')
             self.send_header('X-Content-Type-Options','nosniff')
@@ -55,6 +61,28 @@ class Handler(original.Handler):
             return self.reply('{"ok":true,"boards":28,"mode":"cloud"}',"application/json")
         if path in ("/onn","/onn/") or (path=="/" and not parse_qs(p.query).get("rotate")):
             return self.reply(MENU,"text/html; charset=utf-8")
+        if path=="/production/api/page4-live":
+            board=parse_qs(p.query).get("board",[""])[0]
+            if board not in page4_live.TEAMS:
+                return self.reply('{"error":"Unknown board"}',"application/json",404)
+            try:
+                data=page4_live.cached(board)
+                return self.reply(json.dumps(data,separators=(',',':')),"application/json")
+            except Exception as e:
+                print("Current-season Page 4 data unavailable:",board,type(e).__name__,str(e)[:140],flush=True)
+                return self.reply('{"error":"Current-season ESPN feed temporarily unavailable"}',"application/json",503)
+        if path=="/production/live-page4-basketball.js":
+            return self.reply((HERE/"live-page4-basketball.js").read_bytes(),"application/javascript")
+        if path.startswith("/production/board/"):
+            bid=path.rsplit("/",1)[-1]
+            if bid in page4_live.TEAMS:
+                try:
+                    html=original.adapt_board(original.BY_ID[bid])
+                    html=page4_patch.patch_html(bid,html)
+                    return self.reply(html,"text/html; charset=utf-8")
+                except Exception as e:
+                    print("Page 4 cloud data-only adapter error:",bid,str(e)[:200],flush=True)
+                    return self.reply("Page 4 repair temporarily unavailable","text/plain",500)
         if path=="/production/api/state":
             # Spotlight persistence is browser-local, never shared across public visitors.
             return self.reply('{"spots":{},"playback":{}}',"application/json")
@@ -69,7 +97,14 @@ class Handler(original.Handler):
         if path=="/production/player.js":
             js=(APP/"production"/"player.js").read_text()
             if js.count(ORIGINAL_FIT)!=1:return self.reply("Approved fit anchor changed",status=500)
-            return self.reply(js.replace(ORIGINAL_FIT,NEW_FIT),"application/javascript")
+            js=js.replace(ORIGINAL_FIT,NEW_FIT)
+            # Versioned frames prevent the prior 24h browser cache from
+            # retaining the old stat-only Page 4 HTML. Other boards unchanged.
+            frame_marker="frame.src='/production/board/'+encodeURIComponent(board.id);"
+            if js.count(frame_marker)!=1:
+                return self.reply("Approved player frame source changed",status=500)
+            js=js.replace(frame_marker,"frame.src='/production/board/'+encodeURIComponent(board.id)+(board.id==='page4_celtics'||board.id==='page4_arizona_cbb'?'?stats=20261115-v1':'');")
+            return self.reply(js,"application/javascript")
         allowed=path in ("/production","/production/","/production/boards.json","/production/api/health","/production/diagnostics","/review","/proxy")
         allowed=allowed or path.startswith(("/api/board/","/production/board/","/hosted/","/boards/","/remote/"))
         allowed=allowed or (path.startswith("/production/") and path.lower().endswith((".html",".js",".json",".css")))
