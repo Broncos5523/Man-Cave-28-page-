@@ -1,5 +1,5 @@
 """Data-only browser patches for approved immutable NBA/CBB Page 4 HTML."""
-NBA_BOOT='renderLeaders();renderSpot(0,false);updateTicker();refreshSpotStats();refreshLeaders();'
+NBA_BOOT='renderLeaders();window.MCSpotlight.attach(()=>SPOTLIGHT,(i,a)=>{spotIndex=i;renderSpot(i,a)},320);updateTicker();refreshSpotStats();refreshLeaders();'
 NBA_TIMER='setInterval(()=>{refreshSpotStats();refreshLeaders()},600000);'
 NBA_APPLY=r"""
 window.__MC_NBA_P4_APPLY__=function(payload){
@@ -19,7 +19,7 @@ window.__MC_NBA_P4_APPLY__=function(payload){
     leaders:leaders.map(p=>({name:p.name,category:p.cat,value:p.value}))};
 };
 """
-CBB_BOOT='p4RenderSpot(0,false);p4RenderLeaders();'
+CBB_BOOT='window.MCSpotlight.attach(()=>P4SPOT,(i,a)=>{p4Index=i;p4RenderSpot(i,a)},300);p4RenderLeaders();'
 CBB_APPLY=r"""
 window.__MC_CBB_P4_APPLY__=function(payload){
   const normalize=p4Norm;
@@ -42,7 +42,7 @@ def patch_html(board,html):
     if board=='page4_celtics':
         if html.count(NBA_BOOT)!=1 or html.count(NBA_TIMER)!=1:
             raise RuntimeError('Approved NBA Page 4 anchors changed; refusing data patch')
-        html=html.replace(NBA_BOOT,'renderLeaders();renderSpot(0,false);updateTicker();',1)
+        html=html.replace(NBA_BOOT,'renderLeaders();window.MCSpotlight.attach(()=>SPOTLIGHT,(i,a)=>{spotIndex=i;renderSpot(i,a)},320);updateTicker();',1)
         html=html.replace(NBA_TIMER,'/* live current-season stats owned by cloud data adapter */',1)
         end='</script>'
         if html.count(end)<3:raise RuntimeError('Approved NBA script structure changed')
