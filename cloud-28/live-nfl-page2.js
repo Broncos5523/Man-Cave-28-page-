@@ -66,12 +66,12 @@ function paintAward(data,date){
  set('.hero-ribbon span',label);
  set('.hero-label','NFL.COM MVP TRACKER • '+sourceDate);
  var name=query('.hero-name');
- if(name)name.textContent=String(a.name||'').toUpperCase();
+ if(name){const parts=String(a.name||'').toUpperCase().split(/\s+/);name.replaceChildren(document.createTextNode(parts[0]||'—'),document.createElement('br'),document.createTextNode(parts.slice(1).join(' ')))}
  set('.hero-team span',String(team.name||'').toUpperCase());
  safeSrc(query('.hero-photo'),a.headshot);
  safeSrc(query('.hero-team-logo'),team.logo);
  safeSrc(query('.hero-team img'),team.logo);
- set('.hero-main-stat span','TRACKER SNAPSHOT');
+ set('.hero-main-stat strong','—');set('.hero-main-stat span','TRACKER SNAPSHOT');
  var cells=all('.hero-substats div');
  if(cells.length>=3){
   var rt=stats.QBRating&&stats.QBRating.displayValue,
