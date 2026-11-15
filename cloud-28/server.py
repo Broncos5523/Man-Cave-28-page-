@@ -15,6 +15,7 @@ import live_page4_current as page4_live
 import page4_patch
 import draft_watch_live
 import bracketology_source
+import cbb_tournament_view
 os.chdir(original.GOLD)
 
 ORIGINAL_FIT="function fit(){const w=Math.min(innerWidth,innerHeight*9/16),h=w*16/9;Object.assign(stage.style,{width:w+'px',height:h+'px',left:(innerWidth-w)/2+'px',top:(innerHeight-h)/2+'px'});}"
@@ -97,6 +98,9 @@ class Handler(original.Handler):
             file=original.GOLD/path.lstrip("/")
             if not file.is_file():
                 return self.reply("Runtime script not found",status=404)
+            if path=="/runtime_cbb_p1_v7k.js" and parse_qs(p.query).get("board",[""])[0]=="page1_cbb":
+                source=cbb_tournament_view.patch_runtime(file.read_text(encoding="utf-8"))
+                return self.reply(source,"application/javascript; charset=utf-8")
             return self.reply(file.read_bytes(),"application/javascript; charset=utf-8")
         if path=="/production/api/bracketology-status":
             try:
@@ -142,6 +146,7 @@ class Handler(original.Handler):
                         if html.count('</body>')!=1:raise RuntimeError('Approved Draft Watch body anchor changed')
                         html=html.replace('</body>','<script defer src="/production/live-draft-watch.js?v=20261115-1"></script></body>',1)
                     elif bid=='page1_cbb':
+                        html=cbb_tournament_view.patch_html(html)
                         if html.count('</body>')!=1:raise RuntimeError('Approved NCAA bracketology monitor body anchor changed')
                         html=html.replace('</body>','<script defer src="/production/bracketology-monitor.js?v=20261115-1"></script></body>',1)
                     return self.reply(html,"text/html; charset=utf-8")
@@ -168,7 +173,7 @@ class Handler(original.Handler):
             frame_marker="frame.src='/production/board/'+encodeURIComponent(board.id);"
             if js.count(frame_marker)!=1:
                 return self.reply("Approved player frame source changed",status=500)
-            js=js.replace(frame_marker,"frame.src='/production/board/'+encodeURIComponent(board.id)+(['page4_celtics','page4_arizona_cbb','page4_bruins','page2_nfl','page2_cbb','page1_cbb'].includes(board.id)?'?stats=20261115-v4':'');")
+            js=js.replace(frame_marker,"frame.src='/production/board/'+encodeURIComponent(board.id)+(['page4_celtics','page4_arizona_cbb','page4_bruins','page2_nfl','page2_cbb','page1_cbb'].includes(board.id)?'?stats=20261115-v5':'');")
             return self.reply(js,"application/javascript")
         allowed=path in ("/production","/production/","/production/boards.json","/production/api/health","/production/diagnostics","/review","/proxy")
         allowed=allowed or path.startswith(("/api/board/","/production/board/","/hosted/","/boards/","/remote/"))
