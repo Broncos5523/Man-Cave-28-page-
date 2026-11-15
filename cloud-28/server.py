@@ -142,6 +142,15 @@ class Handler(original.Handler):
                 return self.reply('{"error":"Current-season ESPN feed temporarily unavailable"}',"application/json",503)
         if path=="/production/live-nfl-page2.js":
             return self.reply((HERE/"live-nfl-page2.js").read_bytes(),"application/javascript")
+        if path=="/production/board-runtime.js":
+            js=(APP/"production"/"board-runtime.js").read_text()
+            # Some TV browsers throttle requestAnimationFrame for hidden
+            # iframes. The approved player hides iframes UNTIL they report
+            # ready, so waiting for two animation frames deadlocks startup.
+            before="await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));"
+            after="await Promise.race([new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))),new Promise(r=>setTimeout(r,550))]);"
+            if js.count(before)!=1:return self.reply("Approved board readiness anchor changed",status=500)
+            return self.reply(js.replace(before,after),"application/javascript")
         if path=="/production/live-page4-basketball.js":
             return self.reply((HERE/"live-page4-basketball.js").read_bytes(),"application/javascript")
         if path.startswith("/production/board/"):
@@ -188,6 +197,16 @@ class Handler(original.Handler):
             if js.count(frame_marker)!=1:
                 return self.reply("Approved player frame source changed",status=500)
             js=js.replace(frame_marker,"frame.src='/production/board/'+encodeURIComponent(board.id)+(['page4_celtics','page4_arizona_cbb','page4_bruins','page2_nfl','page2_cbb','page1_cbb'].includes(board.id)?'?stats=20261115-v5':'');")
+            # Only the initial board needs a safety escape from a hung
+            # visibility-based ready handshake on low-memory Android TV.
+            first="if(next.ready){swap(next);next=null;deadline=performance.now()+DUR;heartbeat()}"
+            fixed="if(next&&!next.ready&&now-next.created>16000){next.ready=true;log('first-board-readiness-fallback',{board:next.board.id})}if(next.ready){swap(next);next=null;deadline=performance.now()+DUR;heartbeat()}"
+            if js.count(first)!=1:return self.reply("Approved player first-frame anchor changed",status=500)
+            js=js.replace(first,fixed)
+            ready="if(e.data.type==='mc-board-ready'&&e.source===rec.frame.contentWindow)rec.ready=true;"
+            afterReady="if(e.data.type==='mc-board-ready'&&e.source===rec.frame.contentWindow){rec.ready=true;if(current===rec)activate(rec,true);}"
+            if js.count(ready)!=1:return self.reply("Approved player message anchor changed",status=500)
+            js=js.replace(ready,afterReady)
             return self.reply(js,"application/javascript")
         allowed=path in ("/production","/production/","/production/boards.json","/production/api/health","/production/diagnostics","/review","/proxy")
         allowed=allowed or path.startswith(("/api/board/","/production/board/","/hosted/","/boards/","/remote/"))
