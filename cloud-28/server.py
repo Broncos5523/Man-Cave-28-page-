@@ -21,6 +21,24 @@ if(mode!=='off'&&innerWidth>innerHeight){
 const w=Math.min(innerHeight,innerWidth*9/16),h=w*16/9;
 Object.assign(stage.style,{width:w+'px',height:h+'px',left:'50%',top:'50%',transformOrigin:'center center',transform:'translate(-50%,-50%) rotate('+(mode==='ccw'?'-90':'90')+'deg)'});
 }else{const w=Math.min(innerWidth,innerHeight*9/16),h=w*16/9;Object.assign(stage.style,{width:w+'px',height:h+'px',left:(innerWidth-w)/2+'px',top:(innerHeight-h)/2+'px',transform:'none',transformOrigin:'center center'});}}"""
+NHL_FETCH_SHIM = """<script>
+(function(){
+ const original=window.fetch.bind(window);
+ window.fetch=function(resource,options){
+   const raw=typeof resource==='string'?resource:(resource&&resource.url)||'';
+   if(/^https?:\/\//i.test(raw)){
+     try{
+       const host=new URL(raw).hostname.toLowerCase();
+       if(host==='api-web.nhle.com'||host==='api.nhle.com'){
+         return original('/proxy?url='+encodeURIComponent(raw),options);
+       }
+     }catch(e){}
+   }
+   return original(resource,options);
+ };
+ window.__MC_NHL_SAME_ORIGIN__=true;
+})();
+</script>"""
 MENU='''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Man Cave Sports Book — Onn TV</title>
 <style>body{margin:0;min-height:100vh;background:#07111c;color:white;font-family:Arial;text-align:center}main{margin:auto;max-width:850px;padding:6vh 5vw}
 h2{color:#f1c76b;letter-spacing:.17em}h1{font-size:clamp(30px,6vw,60px)}a{display:block;padding:22px 12px;border:2px solid #cfb372;border-radius:12px;margin:20px 0;background:#183049;color:white;text-decoration:none;font-size:clamp(18px,2.8vw,32px);font-weight:bold}p{color:#b7cada}</style>
@@ -38,7 +56,8 @@ class Handler(original.Handler):
                    or path in ('/production/spotlight-state.js','/production/board-runtime.js'))
         # Modified only in transit; never let a stale on-stick copy of the
         # repaired basketball boards or NFL Page 2 persist for 24 hours.
-        if path in ('/production/board/page4_celtics','/production/board/page4_arizona_cbb'):
+        if path in ('/production/board/page4_celtics','/production/board/page4_arizona_cbb',
+                    '/production/board/page4_bruins','/production/board/page2_nfl'):
             immutable=False
         if self.command=='GET' and immutable:
             self.send_header('Cache-Control','public, max-age=86400')
@@ -71,14 +90,23 @@ class Handler(original.Handler):
             except Exception as e:
                 print("Current-season Page 4 data unavailable:",board,type(e).__name__,str(e)[:140],flush=True)
                 return self.reply('{"error":"Current-season ESPN feed temporarily unavailable"}',"application/json",503)
+        if path=="/production/live-nfl-page2.js":
+            return self.reply((HERE/"live-nfl-page2.js").read_bytes(),"application/javascript")
         if path=="/production/live-page4-basketball.js":
             return self.reply((HERE/"live-page4-basketball.js").read_bytes(),"application/javascript")
         if path.startswith("/production/board/"):
             bid=path.rsplit("/",1)[-1]
-            if bid in page4_live.TEAMS:
+            if bid in page4_live.TEAMS or bid in ('page4_bruins','page2_nfl'):
                 try:
                     html=original.adapt_board(original.BY_ID[bid])
-                    html=page4_patch.patch_html(bid,html)
+                    if bid in page4_live.TEAMS:
+                        html=page4_patch.patch_html(bid,html)
+                    elif bid=='page4_bruins':
+                        if html.count('<head>')!=1:raise RuntimeError('Approved Bruins head anchor changed')
+                        html=html.replace('<head>','<head>'+NHL_FETCH_SHIM,1)
+                    elif bid=='page2_nfl':
+                        if html.count('</body>')!=1:raise RuntimeError('Approved NFL page 2 body anchor changed')
+                        html=html.replace('</body>','<script defer src="/production/live-nfl-page2.js?v=20261115-1"></script></body>',1)
                     return self.reply(html,"text/html; charset=utf-8")
                 except Exception as e:
                     print("Page 4 cloud data-only adapter error:",bid,str(e)[:200],flush=True)
@@ -103,7 +131,7 @@ class Handler(original.Handler):
             frame_marker="frame.src='/production/board/'+encodeURIComponent(board.id);"
             if js.count(frame_marker)!=1:
                 return self.reply("Approved player frame source changed",status=500)
-            js=js.replace(frame_marker,"frame.src='/production/board/'+encodeURIComponent(board.id)+(board.id==='page4_celtics'||board.id==='page4_arizona_cbb'?'?stats=20261115-v1':'');")
+            js=js.replace(frame_marker,"frame.src='/production/board/'+encodeURIComponent(board.id)+(['page4_celtics','page4_arizona_cbb','page4_bruins','page2_nfl'].includes(board.id)?'?stats=20261115-v2':'');")
             return self.reply(js,"application/javascript")
         allowed=path in ("/production","/production/","/production/boards.json","/production/api/health","/production/diagnostics","/review","/proxy")
         allowed=allowed or path.startswith(("/api/board/","/production/board/","/hosted/","/boards/","/remote/"))
