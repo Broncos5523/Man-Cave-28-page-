@@ -22,7 +22,8 @@ def collect():
         pattern=r'<meta\b[^>]*\b'+tag+r'=["\x27]'+re.escape(key)+r'["\x27][^>]*>'
         m=re.search(pattern,page,re.I)
         if not m:return ''
-        c=re.search(r'\bcontent=["\x27]([^"\x27]*)',m.group(),re.I)
+        c=re.search(r'\bcontent="([^"]*)"',m.group(),re.I)
+        if not c:c=re.search(r"\bcontent='([^']*)'",m.group(),re.I)
         return unescape(c.group(1)).strip() if c else ''
     published=modified=''
     for raw in re.findall(r'<script\b[^>]*type=["\x27]application/ld\+json["\x27][^>]*>(.*?)</script>',page,re.S|re.I):
