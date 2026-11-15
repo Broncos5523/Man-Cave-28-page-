@@ -36,6 +36,7 @@ app.config.update(SESSION_COOKIE_SECURE=True,SESSION_COOKIE_HTTPONLY=True,
   SESSION_COOKIE_SAMESITE="Lax",PERMANENT_SESSION_LIFETIME=timedelta(days=30))
 rlock=threading.RLock()
 attempts={}
+league_forbidden_probe_done=False
 last_error=""
 last_standings=0
 last_rosters=0
@@ -101,6 +102,21 @@ def yahoo_get(path):
         # OAuth tokens, league IDs, or provider response bodies.
         kind="league" if path.startswith("/league/") else ("team" if path.startswith("/team/") else "other")
         print("Fantasy Yahoo API status:",response.status_code,"resource:",kind,flush=True)
+        if response.status_code==403 and kind=="league":
+            # One read-only check of a general public Fantasy resource under
+            # the SAME OAuth token distinguishes app-wide authorization
+            # denial from a problem retrieving one private league.
+            global league_forbidden_probe_done
+            with rlock:
+                if not league_forbidden_probe_done:
+                    league_forbidden_probe_done=True
+                    try:
+                        probe=requests.get(YAHOO_BASE+"/game/nfl",params={"format":"json"},
+                          headers={"Authorization":"Bearer "+token,"Accept":"application/json"},
+                          timeout=18)
+                        print("Fantasy entitlement probe (general game): HTTP",probe.status_code,flush=True)
+                    except requests.RequestException:
+                        print("Fantasy entitlement probe (general game): network error",flush=True)
     response.raise_for_status()
     return response.json()
 
