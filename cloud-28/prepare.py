@@ -58,6 +58,41 @@ def main():
                         for chunk in iter(lambda:fragment.read(1024*1024),b""):
                             out.write(chunk)
             return extract(full)
+    # Short-lived, private connector-issued links are set only as Render env vars,
+    # never committed to this public repository. Six concurrent downloads let the
+    # cloud build complete before the signed links expire.
+    signed=[os.environ.get("MANCAVE_SOURCE_PART_%02d"%i,"") for i in range(1,7)]
+    if any(signed):
+        if not all(signed):raise SystemExit("All six signed source parts are required.")
+        from concurrent.futures import ThreadPoolExecutor
+        from urllib.parse import urlparse
+        expected=[x[1] for x in digests]
+        with tempfile.TemporaryDirectory(prefix="man-cave-approved-source-") as temp:
+            location=Path(temp)
+            def fetch_one(item):
+                index,url=item
+                p=urlparse(url)
+                if p.scheme!="https" or p.hostname!="sdmntprcentralus.oaiusercontent.com":
+                    raise RuntimeError("Untrusted source part download host.")
+                target=location/("part%02d"%(index+1))
+                h=hashlib.sha256()
+                req=Request(url,headers={"User-Agent":"ManCaveSportsBook-Approved-v8l"})
+                with urlopen(req,timeout=120) as response,target.open("wb") as out:
+                    for block in iter(lambda:response.read(1024*1024),b""):
+                        h.update(block);out.write(block)
+                if h.hexdigest()!=expected[index]:
+                    raise RuntimeError("Source part %02d checksum mismatch."%(index+1))
+                return target
+            print("Retrieving six approved source parts from temporary, checksum-gated links...",flush=True)
+            with ThreadPoolExecutor(max_workers=6) as executor:
+                part_paths=list(executor.map(fetch_one,enumerate(signed)))
+            full=location/"approved-production.zip"
+            with full.open("wb") as out:
+                for part in part_paths:
+                    with part.open("rb") as source:
+                        for chunk in iter(lambda:source.read(1024*1024),b""):
+                            out.write(chunk)
+            return extract(full)
     local=os.environ.get("MANCAVE_LOCAL_ARCHIVE","")
     if local:return extract(local)
     url=os.environ.get("MANCAVE_SOURCE_ARCHIVE_URL","")
