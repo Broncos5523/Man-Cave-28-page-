@@ -3,9 +3,12 @@ import fs from 'node:fs';
 import {remainingBoardIds} from '../remaining-board-api.mjs';
 const host='https://man-cave-28-page.broncos5523.workers.dev';
 const browser=await chromium.launch({headless:true}),context=await browser.newContext({viewport:{width:720,height:1280}});
+const requested=(process.env.REMAINING_BOARDS||'').split(',').map(x=>x.trim()).filter(Boolean);
+const selected=requested.length?remainingBoardIds.filter(x=>requested.includes(x)):remainingBoardIds;
+if(requested.some(id=>!remainingBoardIds.includes(id))||selected.length===0)throw Error('Invalid targeted board test IDs');
 const results=[];
 try{
-  for(const board of remainingBoardIds){
+  for(const board of selected){
     const page=await context.newPage(),errors=[],responses=[],sourceFailures=[];
     page.on('pageerror',e=>errors.push(String(e.message||e)));
     page.on('response',async r=>{
