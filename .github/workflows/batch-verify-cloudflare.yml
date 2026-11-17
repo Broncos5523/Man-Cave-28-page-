@@ -98,7 +98,10 @@ jobs:
           npm install --no-save playwright
           npx playwright install --with-deps chromium
       - name: Test original renderer against Cloudflare (no TV writes)
-        run: node ${{ matrix.script }} 2>&1 | tee browser-check.log
+        shell: bash
+        run: |
+          set -o pipefail
+          node ${{ matrix.script }} 2>&1 | tee browser-check.log
       - name: Preserve diagnostics and screenshots even on failure
         if: always()
         uses: actions/upload-artifact@v4
