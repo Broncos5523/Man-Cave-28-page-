@@ -5,6 +5,7 @@ on:
     paths:
       - cloud-28/cloudflare-live-proxy.mjs
       - cloud-28/tests/nfl-season-adapter.test.mjs
+      - cloud-28/tests/worker-proxy.test.mjs
       - .github/workflows/test-broncos-season-adapter.yml
   workflow_dispatch:
 
