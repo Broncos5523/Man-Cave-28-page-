@@ -1,0 +1,38 @@
+name: Verify complete 28-board 30-second Cloudflare rotation
+on:
+  push:
+    branches: [main]
+    paths:
+      - cloud-28/tests/browser-full-cycle.mjs
+      - .github/workflows/verify-full-rotation-cycle.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  checks: read
+jobs:
+  full-cycle:
+    name: One unmodified 28-board rotation — read-only staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 34
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm this exact version reached Cloudflare staging
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python cloud-28/tests/wait-cloudflare-deployment.py
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Observe each original 30-second board and complete cycle
+        run: node cloud-28/tests/browser-full-cycle.mjs
+      - name: Save complete rotation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: complete-28-board-rotation-evidence
+          retention-days: 14
+          path: |
+            full-28-board-rotation.json
+            cycle-step-*.png
+            cycle-error.png
