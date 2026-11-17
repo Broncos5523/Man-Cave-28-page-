@@ -20,7 +20,8 @@ export function normalizeEvent(event){
     away:club(away),home:club(home),state:type.state||'pre',completed:type.completed===true,
     status:type.shortDetail||type.detail||type.description||'',statusName:type.name||'',
     timeValid:comp.timeValid!==false,venue:comp.venue?.fullName||'',
-    note:(comp.notes||[]).map(x=>x.headline||'').join(' • '),season:event.season||{},
+    note:(comp.notes||[]).map(x=>x.headline||'').join(' • '),
+    season:{...(event.season||{}),type:event.season?.type??event.seasonType?.type},
     series:comp.series||null,competitionType:comp.type||{},neutral:comp.neutralSite===true};
 }
 export function standingsGroups(data,year){

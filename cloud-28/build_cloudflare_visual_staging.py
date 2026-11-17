@@ -13,6 +13,7 @@ import re
 import shutil
 import threading
 import time
+import cbb_tournament_view
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
@@ -117,6 +118,15 @@ def main():
     try:
         for bid in ids:
             response=request(base,"/production/board/"+bid)
+            if bid=="page1_cbb":
+                # Render added a 2027 snapshot-only display override. The
+                # Cloudflare port must allow the untouched v8l data renderer to
+                # select its verified historical recap. Do not mix that override
+                # with the byte-identical original runtime copied above.
+                override=(cbb_tournament_view.BOOT+cbb_tournament_view.CSS).encode()
+                if response.count(override)!=1:
+                    raise RuntimeError("CBB transport override anchor changed")
+                response=response.replace(override,b"",1)
             # Staging-only network shim runs BEFORE original inline scripts.
             # Original Gold Master stays untouched; fetch operations are
             # redirected solely to our strict same-origin Cloudflare relay.

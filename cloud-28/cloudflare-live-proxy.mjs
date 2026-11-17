@@ -1,6 +1,8 @@
 import {buildNbaPage1} from './nba-page1-contract.mjs';
 import {buildCbbPage1} from './cbb-page1-contract.mjs';
 import {normalizeEvent,tickerFromEvents} from './board-contract-common.mjs';
+import {buildNbaPage2,basketballLeaderSpecs} from './nba-page2-contract.mjs';
+import {buildNflPage3} from './nfl-page3-contract.mjs';
 import {buildNflPage2} from './nfl-page2-contract.mjs';
 import {buildNflPage1} from './nfl-page1-contract.mjs';
 /*
@@ -162,7 +164,7 @@ async function relay(request,ctx,jsonCap=5*1024*1024) {
 }
 async function publicJson(url,ctx,cap){
   const response=await relay(new Request('https://man-cave-relay.invalid/proxy?url='+encodeURIComponent(url)),ctx,cap);
-  if(!response.ok)throw Error('ESPN public source unavailable: '+new URL(url).pathname);
+  if(!response.ok)throw Error('ESPN public source HTTP '+response.status+': '+new URL(url).pathname);
   return response.json();
 }
 async function gameWindow(path,scoreboard,year,ctx,now=new Date()){
@@ -279,6 +281,43 @@ async function nflPage2Api(request,ctx){
     return json({ok:false,error:"NFL Page 2 season/metrics failed verification; not substituting stale totals"},503);
   }
 }
+async function nbaPage2Api(request,ctx){
+  if(request.method!=='GET')return json({ok:false,error:'GET only'},405);
+  const baseResponse=await nbaPage1Api(request,ctx);if(!baseResponse.ok)return baseResponse;
+  try{
+    const base=await baseResponse.json(),year=base.context.year;
+    const common='https://site.api.espn.com/apis/common/v3/sports/basketball/nba/statistics/';
+    const [sources,teams,ticker]=await Promise.all([
+      Promise.all(basketballLeaderSpecs.map(([,cat,field])=>publicJson(common+'byathlete?season='+year+
+        '&seasontype=2&isqualified=true&limit=5&sort='+cat+'.'+field+':desc',ctx))),
+      publicJson(common+'byteam?season='+year+'&seasontype=2&limit=100',ctx),
+      gameWindow('basketball/nba',{events:[]},year,ctx)
+    ]);
+    base.ticker=ticker;
+    const data=buildNbaPage2(base,sources,teams);
+    return new Response(JSON.stringify(data),{headers:{'Content-Type':'application/json; charset=utf-8',
+      'Cache-Control':'public, max-age=60','X-Content-Type-Options':'nosniff','X-Man-Cave-Contract':'original-page2-nba-staging'}});
+  }catch(e){return json({ok:false,error:'NBA Page2 original metrics failed verification',detail:e.message},503);}
+}
+async function nflPage3Api(request,ctx){
+  if(request.method!=='GET')return json({ok:false,error:'GET only'},405);
+  const baseResponse=await nflPage1Api(request,ctx);if(!baseResponse.ok)return baseResponse;
+  try{
+    const base=await baseResponse.json(),year=base.context.year;
+    const [scheduleResults,teams,ticker]=await Promise.all([
+      Promise.allSettled([1,2,3].map(type=>publicJson('https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/7/schedule?season='+year+'&seasontype='+type,ctx))),
+      publicJson('https://site.api.espn.com/apis/common/v3/sports/football/nfl/statistics/byteam?season='+year+'&seasontype=2&limit=100',ctx),
+      gameWindow('football/nfl',{events:[]},year,ctx)
+    ]);
+    base.ticker=ticker;
+    const schedules=scheduleResults.filter(r=>r.status==='fulfilled').map(r=>r.value);
+    const data=buildNflPage3(base,schedules,teams);
+    data.migration.scheduleSources=scheduleResults.map((r,i)=>({seasonType:i+1,state:r.status==='fulfilled'?
+      (r.value.events?.length?'published':'not-published'):'unavailable'}));
+    return new Response(JSON.stringify(data),{headers:{'Content-Type':'application/json; charset=utf-8',
+      'Cache-Control':'public, max-age=60','X-Content-Type-Options':'nosniff','X-Man-Cave-Contract':'original-page3-broncos-staging'}});
+  }catch(e){return json({ok:false,error:'Broncos Page3 original metrics failed verification',detail:e.message},503);}
+}
 async function stagingPlayerState(request){
   const url=new URL(request.url);
   if(!['/staging/api/state','/staging/api/heartbeat'].includes(url.pathname))
@@ -305,20 +344,40 @@ async function stagingPlayerState(request){
     return json({ok:true,storage:'browser-local'});
   }catch{return json({ok:false,error:'Malformed JSON'},400);}
 }
+const pendingBoards=new Map();
+async function cachedBoard(request,ctx,handler){
+  if(request.method!=='GET')return handler(request,ctx);
+  const cache=typeof caches!=='undefined'?caches.default:null;
+  if(!cache)return handler(request,ctx);
+  const key=new Request('https://man-cave-board-cache.invalid/priority-r2'+new URL(request.url).pathname);
+  const saved=await cache.match(key);if(saved)return saved;
+  const id=key.url;
+  if(pendingBoards.has(id))return (await pendingBoards.get(id)).clone();
+  const task=(async()=>{
+    const response=await handler(request,ctx);
+    if(response.ok&&ctx?.waitUntil)ctx.waitUntil(cache.put(key,response.clone()));
+    return response;
+  })();
+  pendingBoards.set(id,task);
+  try{return (await task).clone();}finally{pendingBoards.delete(id);}
+}
 export default {
   async fetch(request,env,ctx) {
     const path=new URL(request.url).pathname;
     if(path==='/api/board/page1_nfl')return nflPage1Api(request,ctx);
     if(path==='/api/board/page2_nfl')return nflPage2Api(request,ctx);
     if(path==='/api/board/page1_nba')return nbaPage1Api(request,ctx);
-    if(path==='/api/board/page1_cbb')return cbbPage1Api(request,ctx);
+    if(path==='/api/board/page1_cbb')return cachedBoard(request,ctx,cbbPage1Api);
+    if(path==='/api/board/page2_nba')return cachedBoard(request,ctx,nbaPage2Api);
+    if(path==='/api/board/page3_broncos')return cachedBoard(request,ctx,nflPage3Api);
     if(path==='/staging/api/state'||path==='/staging/api/heartbeat')
       return stagingPlayerState(request);
     if(path==="/proxy")return relay(request,ctx);
     if(path==="/migration-api/nfl/season-stats")return verifiedNflSeasonStats(request,ctx);
     if(path==="/migration-api/health") return json({
       ok:true,mode:"Cloudflare v8l API migration",
-      publicEspnRelay:"enabled",boardApi:"PARTIAL NFL PAGES 1 AND 2; NBA PAGE 1",firebaseTV:"NOT SWITCHED",
+      publicEspnRelay:"enabled",boardApi:"PARTIAL NFL PAGES 1–3; NBA PAGES 1–2; CBB PAGE 1",firebaseTV:"NOT SWITCHED",
+      adapterRevision:'priority-r2',
       liveStatistics:"requires per-board verification"
     });
     // All other paths are static and should bypass the Worker in production.

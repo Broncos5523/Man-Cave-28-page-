@@ -70,6 +70,13 @@ Updated: November 17, 2026 (11:30 AM America/New_York)
 - Added deployed renderer CI with a fresh browser storage context, actual images, DOM-versus-feed comparisons and screenshot artifacts. CBB is **not counted as verified until this passes**.
 - Rollback before this continuation: source `5e004e70642cdb77f8ba518f793b19abcf0e8aed`, Cloudflare version `1c59008c-453f-4da1-8b95-2c99e33249ec`.
 
+### Priority adapters — direct-source pipeline tests passed; browser proof pending
+
+- NBA Page 2: exact six original `byathlete` qualified metrics and five original team categories. Direct-source Worker execution returned 200 for ESPN 2027. In particular, the v3 generic leaderboard represents 3-point percentage as a ratio; the original `byathlete/offensive.threePointFieldGoalPct` source returns the correct display percentage (`60.0` at check). No guessed multiplication or units.
+- Broncos Page 3 (`page3_broncos`, the actual original board ID): direct-source Worker execution returned 200; 20 games (3 preseason, all 17 regular season), all eight exact original metrics and 32-team ranks. Not-yet-published postseason is empty, not fabricated. Explicit `event.seasonType.type` is carried into the original normalized `season.type` field.
+- CBB staging presentation blocker: the static exporter mixed a Render snapshot-only CSS override with the untouched original runtime. The Cloudflare exporter now omits that override so the original Gold Master renderer controls its historical recap. Gold Master files are not edited.
+- Local full regression now 35 passed, zero failed. Staging rebuilt: 28 original pages, 316 verified original images, no unreadable packaged image URLs. Still no production receiver, controller or Firebase changes.
+
 Port remaining current-season `/api/board` payload contracts, prioritizing NBA Page 2, CBB and NFL Page 3, keeping exact approved v8l JSON render categories. Four of 28 original pages have verified live data; 24 remain. Current NBA playoffs are seed projections only. Preserve the approved JSON shapes, original animations and 30s/7s timings. Then verify all board pages in Chromium, test Firebase controlled boards on a physical Onn, switch only the 32-inch receiver URL when safe, and finally migrate Xfinity and Yahoo backends off Render separately.
 
 **Rule:** No guessed numeric data, no career total in place of current season, no source design changes, no premature production cutover.

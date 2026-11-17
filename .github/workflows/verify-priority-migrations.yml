@@ -31,12 +31,14 @@ jobs:
         run: |
           python - <<'PY'
           import json,time,urllib.request
-          url='https://man-cave-28-page.broncos5523.workers.dev/api/board/page1_cbb'
+          root='https://man-cave-28-page.broncos5523.workers.dev/api/board/'
           for attempt in range(36):
             try:
-              with urllib.request.urlopen(url,timeout=35) as r: d=json.load(r)
-              assert d['board']=='page1_cbb' and d['dataState']=='current'
-              print('CBB_PUBLIC_CONTRACT_READY',d['context']['year']);break
+              for board in ('page1_cbb','page2_nba','page3_broncos'):
+                with urllib.request.urlopen(root+board,timeout=35) as r: d=json.load(r)
+                assert d['board']==board and d['dataState']=='current'
+                print('PUBLIC_CONTRACT_READY',board,d['context']['year'],flush=True)
+              break
             except Exception as e:
               print('Waiting for deployed adapter',attempt,type(e).__name__,flush=True);time.sleep(10)
           else: raise SystemExit('Cloudflare adapter not available; no rendering claim')

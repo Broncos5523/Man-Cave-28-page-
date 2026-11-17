@@ -1,7 +1,7 @@
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 const host=process.env.BOARD_HOST||'https://man-cave-28-page.broncos5523.workers.dev';
-const boards=(process.env.MIGRATION_BOARDS||'page1_cbb').split(',');
+const boards=(process.env.MIGRATION_BOARDS||'page1_cbb,page2_nba,page3_broncos').split(',');
 const browser=await chromium.launch({headless:true});
 try{
   for(const board of boards){
@@ -40,7 +40,7 @@ try{
     }
     if(board==='page3_broncos'){
       assert.equal(state.record,state.expected.record||[state.expected.wins,state.expected.losses].join('-'));
-      assert.equal(state.snapshot.length,6);assert.ok(state.schedule>=17);
+      assert.equal(state.snapshot.length,8);assert.ok(state.schedule>=17);
       for(const p of state.snapshot)assert.ok(state.stats.some(r=>r.label===p.label&&r.value===p.value));
     }
     await page.screenshot({path:board+'-cloudflare.png',fullPage:true});
