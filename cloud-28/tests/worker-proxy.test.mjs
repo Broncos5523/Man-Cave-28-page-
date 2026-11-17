@@ -101,9 +101,9 @@ test("Broncos site adapter uses only requested season and team, not career total
   assert.equal([...flat.values()].includes(9436),false,"Never show career yardage as 2026");
 });
 test("Broncos site adapter fails closed on wrong season or wrong team",()=>{
-  assert.throws(()=>seasonStatsFromSite(nflFixture,2027,"4426338"),/No verified current-year/);
-  assert.throws(()=>seasonStatsFromSite(nflFixture,2026,"4426338","33"),/No verified current-year/);
-  assert.throws(()=>seasonStatsFromSite({categories:[{name:"passing",names:["passingYards"],totals:["99999"]}]},2026,"4426338"),/No verified current-year/);
+  assert.throws(()=>seasonStatsFromSite(nflFixture,2027,"4426338"),/No verified current-year|ESPN did not confirm regular-season/);
+  assert.throws(()=>seasonStatsFromSite(nflFixture,2026,"4426338","33"),/No verified current-year|ESPN did not confirm regular-season/);
+  assert.throws(()=>seasonStatsFromSite({categories:[{name:"passing",names:["passingYards"],totals:["99999"]}]},2026,"4426338"),/No verified current-year|ESPN did not confirm regular-season/);
 });
 test("Cloudflare NFL stats route returns a Core-compatible response built from 2026 row",async()=>{
   const real=globalThis.fetch;let url,authorization;
