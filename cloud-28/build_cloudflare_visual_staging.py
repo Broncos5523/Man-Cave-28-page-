@@ -118,7 +118,7 @@ def main():
                 raise RuntimeError("Unoptimized embedded image in "+bid)
             if b"<html" not in response[:2500].lower():
                 raise RuntimeError("Invalid approved board HTML: "+bid)
-            match=re.search(rb"<head\\b[^>]*>",response,flags=re.I)
+            match=re.search(rb"<head\b[^>]*>",response,flags=re.I)
             if not match:
                 raise RuntimeError("Approved board head insertion point missing: "+bid)
             shim=b'<script src="/staging/espn-fetch-shim.js"></script>'
