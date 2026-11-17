@@ -1,0 +1,25 @@
+name: Verify public Cloudflare NFL Page 2 and original browser cards
+
+on:
+  push:
+    paths:
+      - cloud-28/tests/public-nfl-page2.py
+      - cloud-28/tests/browser-nfl-page2-live.mjs
+      - .github/workflows/check-live-nfl-page2.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  public:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify real ESPN player and team leaders via public Cloudflare Worker
+        run: python cloud-28/tests/public-nfl-page2.py
+      - name: Install browser
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Verify six approved player and five team cards update in Chromium
+        run: node cloud-28/tests/browser-nfl-page2-live.mjs
