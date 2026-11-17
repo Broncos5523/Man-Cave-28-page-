@@ -1,0 +1,45 @@
+import {chromium} from 'playwright';
+
+const root="https://man-cave-28-page.broncos5523.workers.dev";
+const uri=root+"/staging/player.html?rotate=off&qa=rotation-v1";
+const browser=await chromium.launch({headless:true});
+const page=await browser.newPage({viewport:{width:720,height:1280}});
+const errors=[],reqs=[];
+page.on("pageerror",err=>errors.push((err.stack||String(err)).slice(0,700)));
+page.on("response",r=>{
+  if(/\/staging\/(api\/|boards\.json|boards\/|player\.js)/.test(r.url()))
+    reqs.push({code:r.status(),path:new URL(r.url()).pathname});
+});
+await page.route('**/*',route=>route.request().resourceType()==="image"?route.abort():route.continue());
+try{
+  const response=await page.goto(uri,{waitUntil:"domcontentloaded",timeout:30000});
+  console.log("ROTATION_NAV",response?.status(),page.url());
+  await page.waitForFunction(()=>!!window.__MC_PRODUCTION?.current,{timeout:22000});
+  const initial=await page.evaluate(()=>({
+    current:window.__MC_PRODUCTION?.current,
+    index:window.__MC_PRODUCTION?.index,
+    frames:window.__MC_PRODUCTION?.frames,
+    manifest:window.MCStore?.playback,
+    spotlight:!!window.MCSpotlightState?.peek,
+    orientation:window.__MC_ONN_FIT_REPORT__?.mode,
+    history:window.__MC_PRODUCTION_EVENTS?.slice(-6)
+  }));
+  console.log("ROTATION_FIRST",JSON.stringify(initial));
+  if(initial.current!=="page1_nfl"||initial.index!==0||!initial.spotlight)
+    throw Error("Original first board or approved spotlight state missing");
+  await page.waitForFunction(()=>window.__MC_PRODUCTION?.current==="page2_nfl",{timeout:53000});
+  const second=await page.evaluate(()=>({
+    current:window.__MC_PRODUCTION?.current,
+    index:window.__MC_PRODUCTION?.index,
+    frames:window.__MC_PRODUCTION?.frames,
+    visible:document.querySelector("#stage iframe.current")?.dataset.board,
+    history:window.__MC_PRODUCTION_EVENTS?.filter(e=>e.event==="board-visible")
+  }));
+  console.log("ROTATION_SECOND",JSON.stringify(second));
+  console.log("ROTATION_REQUESTS",JSON.stringify(reqs.slice(0,50)));
+  console.log("ROTATION_ERRORS",JSON.stringify(errors.slice(0,12)));
+  if(second.index!==1||second.visible!=="page2_nfl")throw Error("Approved second board did not replace first");
+  if(!reqs.some(x=>x.code===200&&x.path==="/staging/boards.json"))throw Error("Board manifest not loaded");
+  if(!reqs.some(x=>x.code===200&&x.path.startsWith("/staging/api/state")))throw Error("Local playback API unavailable");
+  console.log("PASS_CLOUDFLARE_ORIGINAL_ROTATION_30S");
+}finally{await browser.close();}
