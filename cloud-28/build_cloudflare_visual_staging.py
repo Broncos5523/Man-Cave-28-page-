@@ -130,6 +130,23 @@ def main():
             'hosted/page4_arizona_cfb/_assets/arizona-football-page4-CtvpXjud.js',
         ):
             data=request(base,'/'+rel)
+            if rel=='hosted/page4_arizona_cfb/index.html':
+                # The approved nested app renders its visual content correctly
+                # but does not declare the original player MCBoard lifecycle.
+                # Its OUTER wrapper waits for child.MCBoard.ready, so 20s
+                # later it signals a false load failure and the rotation stalls.
+                # Restore the already-approved production lifecycle module in
+                # the nested STAGING delivery only (never in the Gold Master).
+                # It confirms actual #root content, image/font readiness and
+                # animation frames before announcing ready. No fake signal.
+                if b'/production/board-runtime.js' in data or b'__MC_PRODUCTION_BOARD' in data:
+                    raise RuntimeError('Arizona nested lifecycle already present; review before exporting')
+                head=re.search(rb'<head\\b[^>]*>',data,re.I)
+                if not head:
+                    raise RuntimeError('Arizona nested app lacks expected head anchor')
+                bridge=(b'<script>window.__MC_PRODUCTION_BOARD="page4_arizona_cfb";</script>'
+                        b'<script src="/production/board-runtime.js"></script>')
+                data=data[:head.end()]+bridge+data[head.end():]
             if rel.endswith('index-BpJce90E.js'):
                 old=b'"/hosted/page4_arizona_cfb/index.html"'
                 if data.count(old)!=1:raise RuntimeError('Arizona nested app route changed')
