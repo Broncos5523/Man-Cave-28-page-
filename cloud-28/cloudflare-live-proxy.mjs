@@ -3,6 +3,7 @@ import {buildCbbPage1} from './cbb-page1-contract.mjs';
 import {normalizeEvent,tickerFromEvents} from './board-contract-common.mjs';
 import {buildNbaPage2,basketballLeaderSpecs} from './nba-page2-contract.mjs';
 import {buildNflPage3} from './nfl-page3-contract.mjs';
+import {remainingBoard,remainingBoardIds} from './remaining-board-api.mjs';
 import {buildNflPage2} from './nfl-page2-contract.mjs';
 import {buildNflPage1} from './nfl-page1-contract.mjs';
 /*
@@ -128,7 +129,8 @@ async function relay(request,ctx,jsonCap=5*1024*1024) {
     // Public feeds only. Never send incoming Authorization, Cookie or Xfinity data.
     upstream=await fetch(target.toString(),{
       method:"GET",redirect:"manual",
-      headers:{"Accept":IMAGE_HOSTS.has(target.hostname)?"image/avif,image/webp,image/*;q=0.8,*/*;q=0.5":"application/json, text/plain;q=0.9"},
+      headers:{"Accept":IMAGE_HOSTS.has(target.hostname)?"image/avif,image/webp,image/*;q=0.8,*/*;q=0.5":"application/json, text/plain;q=0.9",
+        "User-Agent":"ManCaveSportsBook-v8l"},
       signal:AbortSignal.timeout(13000)
     });
   } catch(e) {
@@ -353,7 +355,7 @@ async function cachedBoard(request,ctx,handler){
   if(request.method!=='GET')return handler(request,ctx);
   const cache=typeof caches!=='undefined'?caches.default:null;
   if(!cache)return handler(request,ctx);
-  const key=new Request('https://man-cave-board-cache.invalid/priority-r2'+new URL(request.url).pathname);
+  const key=new Request('https://man-cave-board-cache.invalid/remaining-r1'+new URL(request.url).pathname);
   const saved=await cache.match(key);if(saved)return saved;
   const id=key.url;
   if(pendingBoards.has(id))return (await pendingBoards.get(id)).clone();
@@ -374,14 +376,16 @@ export default {
     if(path==='/api/board/page1_cbb')return cachedBoard(request,ctx,cbbPage1Api);
     if(path==='/api/board/page2_nba')return cachedBoard(request,ctx,nbaPage2Api);
     if(path==='/api/board/page3_broncos')return cachedBoard(request,ctx,nflPage3Api);
+    if(remainingBoardIds.some(board=>path==='/api/board/'+board))return cachedBoard(request,ctx,
+      (req,c)=>remainingBoard(req,c,publicJson,gameWindow));
     if(path==='/staging/api/state'||path==='/staging/api/heartbeat')
       return stagingPlayerState(request);
     if(path==="/proxy")return relay(request,ctx);
     if(path==="/migration-api/nfl/season-stats")return verifiedNflSeasonStats(request,ctx);
     if(path==="/migration-api/health") return json({
       ok:true,mode:"Cloudflare v8l API migration",
-      publicEspnRelay:"enabled",boardApi:"PARTIAL NFL PAGES 1–3; NBA PAGES 1–2; CBB PAGE 1",firebaseTV:"NOT SWITCHED",
-      adapterRevision:'priority-r2',
+      publicEspnRelay:"enabled",boardApi:"ALL PAGE 1–3 ROUTES IMPLEMENTED; VERIFICATION IN PROGRESS",firebaseTV:"NOT SWITCHED",
+      adapterRevision:'remaining-r1',
       liveStatistics:"requires per-board verification"
     });
     // All other paths are static and should bypass the Worker in production.

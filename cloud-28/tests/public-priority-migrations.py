@@ -7,7 +7,7 @@ def read(path):
 for attempt in range(30):
     try:
         health=json.loads(read('/migration-api/health'))
-        assert health.get('adapterRevision')=='priority-r2','Waiting for matching Worker revision'
+        assert health.get('adapterRevision') in ('priority-r2','remaining-r1'),'Waiting for matching Worker revision'
         for board in ('page1_cbb','page2_nba','page3_broncos'):
             data=json.loads(read('/api/board/'+board))
             assert data['board']==board and data['dataState']=='current'

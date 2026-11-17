@@ -2,18 +2,33 @@ import {requireData as need,sourceSeason,statisticRows,number} from './board-con
 const fmt=(v,kind)=>kind==='int'?v.toLocaleString('en-US',{maximumFractionDigits:0}):
   kind==='pct'?v.toFixed(1)+'%':kind==='signed'?(v>=0?'+':'')+v.toFixed(1):
   kind==='two'?v.toFixed(2):kind==='baseball'?v.toFixed(3).replace(/^0/,''):v.toFixed(1);
-export function buildTeamPanels(base,data,sport){
+export function buildTeamPanels(base,data,sport,advanced=[]){
   const year=number(base.context?.statsYear);sourceSeason(data,year);
   const clubs=(base.standings?.groups||[]).flatMap(g=>g.entries||[]),byId=new Map(clubs.map(t=>[t.id,t]));
   const rows=statisticRows(data).map(({row,stats})=>({team:byId.get(String(row.team?.id)),stats})).filter(t=>t.team);
   need(rows.length===clubs.length&&new Set(rows.map(t=>t.team.id)).size===clubs.length,'Incomplete league team statistics');
   const get=(t,key)=>number(t.stats[key]?.value);
+  for(const extra of advanced){const t=rows.find(r=>r.team.id===extra.id);if(t)Object.assign(t.stats,extra.stats);}
   const against=t=>get(t,'opponent.offensive.avgPoints')??number(t.team.stats?.avgPointsAgainst?.value);
   const ints=t=>get(t,'defensiveinterceptions.interceptions')??get(t,'opponent.passing.interceptions');
   const sacks=t=>get(t,'opponent.passing.sacks');
   const sum=(...v)=>v.every(x=>x!==null)?v.reduce((a,b)=>a+b,0):null;
   const metric=key=>t=>get(t,key);
   const divide=(a,b)=>t=>{const x=get(t,a),y=get(t,b);return x!==null&&y?x/y:null;};
+  const metricAny=(t,...names)=>{
+    for(const name of names)for(const [key,s] of Object.entries(t.stats))
+      if(!key.startsWith('opponent.')&&key.split('.').at(-1)===name&&number(s.value)!==null)return number(s.value);
+    return null;
+  };
+  const pace=t=>metricAny(t,'paceFactor','avgEstimatedPossessions','avgPossessions');
+  const off=t=>{const direct=metricAny(t,'pointsPerEstimatedPossessions','offensiveRating');
+    return direct!==null?(direct<10?direct*100:direct):get(t,'offensive.avgPoints')!==null&&pace(t)?get(t,'offensive.avgPoints')/pace(t)*100:null;};
+  const defense=t=>{const direct=metricAny(t,'defensiveRating');
+    return direct!==null?(direct<10?direct*100:direct):against(t)!==null&&pace(t)?against(t)/pace(t)*100:null;};
+  const net=t=>off(t)!==null&&defense(t)!==null?off(t)-defense(t):null;
+  const basketball=[['SCORING OFFENSE',metric('offensive.avgPoints'),true,'one'],['SCORING DEFENSE',against,false,'one'],
+    ['REBOUNDS',metric('general.avgRebounds'),true,'one'],['ASSISTS',metric('offensive.avgAssists'),true,'one'],['FIELD GOAL %',metric('offensive.fieldGoalPct'),true,'pct']];
+  const ratings=[['OFF RTG',off,true,'one'],['DEF RTG',defense,false,'one'],['NET RTG',net,true,'signed'],['PACE',pace,true,'one']];
   const specs={
     nfl:{favorite:'7',leaders:[
       ['PASSING OFFENSE',metric('passing.netPassingYardsPerGame'),true,'one'],
@@ -25,9 +40,37 @@ export function buildTeamPanels(base,data,sport){
         ['TOTAL DEFENSE',metric('opponent.passing.netYardsPerGame'),false,'one'],
         ['SCORING DEFENSE',metric('opponent.passing.totalPointsPerGame'),false,'one'],
         ['SACKS',sacks,true,'one'],['TAKEAWAYS',t=>sum(ints(t),get(t,'general.fumblesRecovered')),true,'int']]},
-    nba:{favorite:'2',leaders:[['SCORING OFFENSE',metric('offensive.avgPoints'),true,'one'],
-      ['SCORING DEFENSE',against,false,'one'],['REBOUNDS',metric('general.avgRebounds'),true,'one'],
-      ['ASSISTS',metric('offensive.avgAssists'),true,'one'],['FIELD GOAL %',metric('offensive.fieldGoalPct'),true,'pct']],snapshot:[]}
+    nba:{favorite:'2',leaders:basketball,snapshot:advanced.length?[...ratings,
+      ['REB / GAME',metric('general.avgRebounds'),true,'one'],['AST / GAME',metric('offensive.avgAssists'),true,'one']]:[]},
+    wnba:{favorite:'5',leaders:basketball,snapshot:advanced.length?[
+      ['POINTS / GAME',metric('offensive.avgPoints'),true,'one'],['OPP PTS / GAME',against,false,'one'],...ratings]:[]},
+    cbb:{favorite:'12',leaders:basketball,snapshot:[['POINTS / GAME',metric('offensive.avgPoints'),true,'one'],
+      ['REBOUNDS / GAME',metric('general.avgRebounds'),true,'one'],['ASSISTS / GAME',metric('offensive.avgAssists'),true,'one'],
+      ['OPP PTS / GAME',against,false,'one'],['FIELD GOAL %',metric('offensive.fieldGoalPct'),true,'pct'],
+      ['3-POINT %',metric('offensive.threePointFieldGoalPct'),true,'pct']]},
+    nhl:{favorite:'1',leaders:[['GOALS / GAME',metric('offensive.avgGoals'),true,'two'],['GOALS ALLOWED',metric('defensive.avgGoalsAgainst'),false,'two'],
+      ['POWER PLAY',metric('offensive.powerPlayPct'),true,'pct'],['PENALTY KILL',metric('defensive.penaltyKillPct'),true,'pct'],
+      ['SHOTS / GAME',divide('offensive.shotsTotal','general.games'),true,'one']],snapshot:[
+      ['GOALS / GAME',metric('offensive.avgGoals'),true,'two'],['GA / GAME',metric('defensive.avgGoalsAgainst'),false,'two'],
+      ['POWER PLAY %',metric('offensive.powerPlayPct'),true,'pct'],['PENALTY KILL %',metric('defensive.penaltyKillPct'),true,'pct'],
+      ['SHOTS / GAME',divide('offensive.shotsTotal','general.games'),true,'one'],['SAVE %',metric('defensive.savePct'),true,'baseball']]},
+    mlb:{favorite:'2',leaders:[['WINS',t=>number(t.team.wins),true,'int'],['RUNS SCORED',metric('batting.runs'),true,'int'],
+      ['HOME RUNS',metric('batting.homeRuns'),true,'int'],['TEAM ERA',metric('pitching.ERA'),false,'two'],
+      ['STRIKEOUTS',metric('pitching.strikeouts'),true,'int']],snapshot:[['RUNS / GAME',divide('batting.runs','batting.gamesPlayed'),true,'two'],
+      ['BATTING AVG',metric('batting.avg'),true,'baseball'],['OPS',metric('batting.OPS'),true,'baseball'],
+      ['HOME RUNS',metric('batting.homeRuns'),true,'int'],['TEAM ERA',metric('pitching.ERA'),false,'two'],['WHIP',metric('pitching.WHIP'),false,'two']]},
+    cfb:{favorite:'12',leaders:[['SCORING OFFENSE',metric('passing.totalPointsPerGame'),true,'one'],
+      ['TOTAL OFFENSE',divide('passing.totalYards','general.gamesPlayed'),true,'one'],
+      ['TOTAL DEFENSE',divide('opponent.passing.totalYards','general.gamesPlayed'),false,'one'],
+      ['TEAM SACKS',sacks,true,'one'],['INTERCEPTIONS',ints,true,'int']],snapshot:[
+      ['POINTS / GAME',metric('passing.totalPointsPerGame'),true,'one'],['TOTAL OFFENSE',divide('passing.totalYards','general.gamesPlayed'),true,'one'],
+      ['PASS YARDS / GAME',metric('passing.passingYardsPerGame'),true,'one'],['RUSH YARDS / GAME',metric('rushing.rushingYardsPerGame'),true,'one'],
+      ['POINTS ALLOWED / GAME',metric('opponent.passing.totalPointsPerGame'),false,'one'],
+      ['TURNOVER MARGIN',t=>{
+        const gained=sum(ints(t),get(t,'general.fumblesRecovered'));
+        const lost=get(t,'passing.interceptions'),fumbles=get(t,'general.fumblesLost')??get(t,'opponent.general.fumblesRecovered'),gp=get(t,'general.gamesPlayed');
+        return gained!==null&&lost!==null&&fumbles!==null&&gp?(gained-lost-fumbles)/gp:null;
+      },true,'signed']]}
   }[sport];
   need(specs,'Team panel sport not implemented');
   const valid=(label,fn)=>{

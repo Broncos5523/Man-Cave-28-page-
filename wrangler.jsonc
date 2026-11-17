@@ -8,6 +8,6 @@
   "assets": {
     "directory": "./cloud-28/cloudflare-static-dist",
     "binding": "ASSETS",
-    "run_worker_first": ["/proxy", "/migration-api/*", "/staging/api/*", "/api/board/page1_nfl", "/api/board/page2_nfl", "/api/board/page1_nba", "/api/board/page1_cbb", "/api/board/page2_nba", "/api/board/page3_broncos"]
+    "run_worker_first": ["/proxy", "/migration-api/*", "/staging/api/*", "/api/board/*"]
   }
 }

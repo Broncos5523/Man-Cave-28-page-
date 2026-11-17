@@ -56,4 +56,25 @@
     return native(input,init);
   };
   window.__MC_CLOUDFLARE_PUBLIC_FEED_RELAY__='staging-only';
+  if(board[1]==='page3_arizona_cfb'){
+    // The locked source calls a missing loadSchedule(). Supply only that data
+    // bridge and call its existing renderers; no original markup/CSS is edited.
+    window.loadSchedule=async function(){
+      const response=await native('/api/board/page3_arizona_cfb',{cache:'no-store'});
+      if(!response.ok)throw Error('Verified Arizona schedule unavailable');
+      const feed=await response.json();
+      if(feed.board!=='page3_arizona_cfb'||feed.dataState!=='current'||!feed.schedule?.length)
+        throw Error('Unverified Arizona schedule contract');
+      const events=feed.schedule.map(e=>({id:e.id,date:e.date,season:e.season,competitions:[{
+        venue:{fullName:e.venue},status:{type:{state:e.state,completed:e.completed,detail:e.status}},
+        competitors:[{homeAway:'away',team:{id:e.away.id},score:e.away.score},
+          {homeAway:'home',team:{id:e.home.id},score:e.home.score}]}]}));
+      const completed=events.filter(e=>e.competitions[0].status.type.completed).sort((a,b)=>a.date.localeCompare(b.date));
+      const live=events.find(e=>e.competitions[0].status.type.state==='in'&&!e.competitions[0].status.type.completed);
+      const next=live||events.filter(e=>e.competitions[0].status.type.state==='pre'&&Date.parse(e.date)>=Date.now()).sort((a,b)=>a.date.localeCompare(b.date))[0];
+      if(completed.length){window.renderLast?.(completed.at(-1));window.renderFive?.(completed);}
+      if(next)window.renderNext?.(next,!!live);
+      window.__MC_CFB_SCHEDULE_COMPAT__={current:true,year:feed.context.year,games:events.length};
+    };
+  }
 })();

@@ -59,7 +59,7 @@ test("migration health advertises unported features accurately",async()=>{
   const r=await app.fetch(new Request(host+"/migration-api/health"),{},null);
   assert.equal(r.status,200);
   const data=await r.json();
-  assert.equal(data.boardApi,"PARTIAL NFL PAGES 1–3; NBA PAGES 1–2; CBB PAGE 1");
+  assert.equal(data.boardApi,"ALL PAGE 1–3 ROUTES IMPLEMENTED; VERIFICATION IN PROGRESS");
   assert.equal(data.firebaseTV,"NOT SWITCHED");
 });
 test("other requests defer to static assets",async()=>{

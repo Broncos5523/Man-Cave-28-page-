@@ -35,12 +35,15 @@ export function standingsGroups(data,year){
       requireData(number(table.season)===year&&number(table.seasonType)===2,'Conference season/type mismatch');
       const entries=table.entries.filter(e=>e.team).map(e=>{
         const stats={};for(const s of e.stats||[])if(s.name&&!(s.name in stats))stats[s.name]=s;
-        const wins=number(stats.wins?.value),losses=number(stats.losses?.value);
+        const record=stats.overall?.displayValue||stats.overall?.summary||'';
+        const published=/^(\d+)-(\d+)(?:-(\d+))?$/.exec(record);
+        const wins=number(stats.wins?.value)??(published?Number(published[1]):null),
+          losses=number(stats.losses?.value)??(published?Number(published[2]):null);
         requireData(wins!==null&&losses!==null&&wins>=0&&losses>=0,'Missing verified team record');
         return {...teamInfo(e.team),wins,losses,ties:number(stats.ties?.value),
           otLosses:number(stats.otLosses?.value),points:number(stats.points?.value),
           seed:number(stats.playoffSeed?.value),pct:number(stats.winPercent?.value),
-          streak:stats.streak?.displayValue||'',stats,record:stats.overall?.displayValue||'',group:label,path};
+          streak:stats.streak?.displayValue||'',stats,record,group:label,path};
       });
       requireData(entries.length>0||obj.children?.length,'Empty standings group');
       if(entries.length)groups.push({name:label,path,entries});

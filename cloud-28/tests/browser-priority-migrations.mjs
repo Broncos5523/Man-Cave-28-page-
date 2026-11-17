@@ -17,7 +17,8 @@ try{
         if(feed?.dataState!=='current'||!window.MCBoard?.ready)return false;
         if(id==='page3_broncos')return feed.teamPanels.snapshot.every(p=>
           [...document.querySelectorAll('#offense .rank,#defense .rank')].some(r=>
-            r.querySelector('.lbl')?.textContent===p.label&&r.querySelector('.num')?.textContent===p.value));
+            r.querySelector('.lbl')?.textContent===p.label&&Number(r.querySelector('.num')?.textContent)===Number(p.value)&&
+            r.querySelector('.place')?.textContent.includes('#'+p.rank+' ')));
         return true;
       }catch{return false;}
     },board,{timeout:60000});
@@ -49,7 +50,7 @@ try{
     if(board==='page3_broncos'){
       assert.equal(state.record,state.expected.record||[state.expected.wins,state.expected.losses].join('-'));
       assert.equal(state.snapshot.length,8);assert.ok(state.schedule>=17);
-      for(const p of state.snapshot)assert.ok(state.stats.some(r=>r.label===p.label&&r.value===p.value));
+      for(const p of state.snapshot)assert.ok(state.stats.some(r=>r.label===p.label&&Number(r.value)===Number(p.value)));
     }
     await page.screenshot({path:board+'-cloudflare.png',fullPage:true});
     console.log('PASS_ORIGINAL_RENDERER',JSON.stringify(state));
