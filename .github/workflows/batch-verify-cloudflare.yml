@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/batch-verify-cloudflare.yml
       - cloud-28/tests/audit-public-core-feed.py
+      - cloud-28/tests/collect-batch-report.py
       - cloud-28/tests/browser-remaining-migrations.mjs
       - cloud-28/tests/browser-native-page4.mjs
       - cloud-28/cloudflare-live-proxy.mjs
@@ -87,7 +88,7 @@ jobs:
           npm install --no-save playwright
           npx playwright install --with-deps chromium
       - name: Test original renderer against Cloudflare (no TV writes)
-        run: node ${{ matrix.script }}
+        run: node ${{ matrix.script }} 2>&1 | tee browser-check.log
       - name: Preserve diagnostics and screenshots even on failure
         if: always()
         uses: actions/upload-artifact@v4
@@ -96,6 +97,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
           path: |
+            browser-check.log
             *.json
             *-cloudflare.png
             *-render.png
@@ -107,7 +109,48 @@ jobs:
     if: always()
     needs: [contracts, published-source, deployed, browsers]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
+      - uses: actions/checkout@v4
+      - name: Download all independent browser observations
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: cloudflare-28-*-evidence
+          path: _batch-evidence
+      - name: Collect source, contract and each original board result
+        env:
+          CONTRACTS: ${{ needs.contracts.result }}
+          SOURCE: ${{ needs.published-source.result }}
+          DEPLOY: ${{ needs.deployed.result }}
+          BROWSERS: ${{ needs.browsers.result }}
+        run: python cloud-28/tests/collect-batch-report.py
+      - name: Save the consolidated per-board evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-28-one-shot-final-report
+          retention-days: 14
+          path: _batch-report/
+      - name: Publish latest read-only report to separate evidence branch
+        shell: bash
+        run: |
+          data_dir="$RUNNER_TEMP/mancave-batch-evidence"
+          if git ls-remote --exit-code origin refs/heads/cloudflare-batch-results >/dev/null; then
+            git fetch origin cloudflare-batch-results
+            git worktree add --detach "$data_dir" FETCH_HEAD
+          else
+            git worktree add --detach "$data_dir" HEAD
+            git -C "$data_dir" switch --orphan cloudflare-batch-results
+          fi
+          cp _batch-report/latest.json "$data_dir/latest.json"
+          cp _batch-report/latest.md "$data_dir/latest.md"
+          git -C "$data_dir" config user.name 'github-actions[bot]'
+          git -C "$data_dir" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C "$data_dir" add latest.json latest.md
+          git -C "$data_dir" commit -m "Record automated staging validation for $GITHUB_SHA"
+          git -C "$data_dir" push origin HEAD:cloudflare-batch-results
       - name: Report all results and reject incomplete cutover
         env:
           CONTRACTS: ${{ needs.contracts.result }}
