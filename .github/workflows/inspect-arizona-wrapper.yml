@@ -35,4 +35,15 @@ jobs:
                           print('ARIZONA_WRAPPER_LINE',j+1,lines[j][:600])
                           seen.add(j)
           print('ARIZONA_WRAPPER_LINES_TOTAL',len(lines))
+          print('ARIZONA_FULL_WRAPPER_START')
+          for i,line in enumerate(lines):print('ARIZONA_FULL_WRAPPER',i+1,line[:1000])
+          print('ARIZONA_FULL_WRAPPER_END')
+          for rel in ['production/board-runtime.js','hosted/page4_arizona_cfb/index.html']:
+              p=root/rel
+              if not p.exists():print('DIAGNOSTIC_NOT_FOUND',rel);continue
+              src=p.read_text()
+              print('DIAGNOSTIC_SOURCE',rel,'length',len(src))
+              for tok in ['mc-board-ready','mc-board-load-failed','mcproduction','postMessage','setTimeout','addEventListener']:
+                  pos=src.find(tok)
+                  if pos>=0:print('DIAGNOSTIC_TOKEN',rel,tok,src[max(0,pos-350):pos+600].replace('\\n',' ')[:1000])
           PY
