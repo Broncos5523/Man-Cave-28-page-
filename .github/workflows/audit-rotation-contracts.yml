@@ -1,0 +1,50 @@
+name: Audit original rotation player and 28 board live-data contracts (no deployment)
+
+on:
+  push:
+    paths:
+      - .github/workflows/audit-rotation-contracts.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Retrieve SHA-verified locked source archive
+        run: python cloud-28/prepare.py
+      - name: Inspect production player scripts and all board data routes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json,re,sys
+          sys.path.insert(0,'cloud-28')
+          import low_bandwidth_server as low
+          app=low.approved.APP
+          gold=low.approved.original.GOLD
+          print('=== PLAYER SCRIPT BEGIN ===')
+          s=(app/'production/player.js').read_text()
+          for i,line in enumerate(s.splitlines(),1):print(f'PLAYER {i:03d} {line[:1000]}')
+          print('=== PLAYER HTML BEGIN ===')
+          for i,line in enumerate((app/'production/player.html').read_text().splitlines(),1):print(f'HTML {i:03d} {line[:1100]}')
+          print('=== BOARD MANIFEST ===')
+          print(json.dumps(json.loads((app/'production/boards.json').read_text()),ensure_ascii=False)[:16000])
+          print('=== REMOTE TV3 CODE BEGIN ===')
+          remote=Path('cloud-28/tv3-remote.js').read_text()
+          for i,line in enumerate(remote.splitlines(),1):print(f'TV3 {i:03d} {line[:1000]}')
+          print('=== BOARD LIVE CONTRACT INVENTORY ===')
+          for item in json.loads((app/'production/boards.json').read_text())['boards']:
+              bid=item['id']
+              p=gold/'boards'/(bid+'.html')
+              raw=p.read_text(errors='replace')
+              raw=re.sub(r'data:image/(?:png|jpe?g|webp|gif|svg\+xml|avif|bmp);base64,[A-Za-z0-9+/=]+','[image]',raw,flags=re.I)
+              matched=sorted(set(re.findall(r'(?:\/api\/board\/[a-z0-9_]+|\/production\/api\/[a-zA-Z0-9_\-]+|runtime_[a-zA-Z0-9_\-]+\.js|https:\/\/(?:site|sports)\.[a-zA-Z0-9.]+\.com\/[^\s"<>]{0,130})',raw,flags=re.I)))
+              scripts=re.findall(r'<script\b[^>]*\bsrc=["\x27]([^"\x27]+)',raw,re.I)
+              fetches=raw.count('fetch(')
+              print('BOARD',bid,'FETCH_COUNT',fetches,'ENDPOINTS',json.dumps(matched[:30]),'SCRIPTS',json.dumps(scripts[:15]))
+          PY
