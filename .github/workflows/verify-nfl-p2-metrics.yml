@@ -1,0 +1,17 @@
+name: Verify NFL Page 2 exact team categories and player-team identities
+
+on:
+  push:
+    paths:
+      - cloud-28/verify_nfl_p2_metrics.py
+      - .github/workflows/verify-nfl-p2-metrics.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - run: python cloud-28/verify_nfl_p2_metrics.py
