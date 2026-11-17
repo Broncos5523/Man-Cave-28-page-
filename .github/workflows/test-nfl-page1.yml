@@ -22,4 +22,8 @@ jobs:
       - name: Verify strict NFL Page 1 contract and existing API adapters
         run: node --test cloud-28/tests/nfl-page1.test.mjs cloud-28/tests/worker-proxy.test.mjs cloud-28/tests/nfl-season-adapter.test.mjs
       - name: Dry-run bundled Cloudflare Worker
-        run: npx --yes wrangler@4 deploy --dry-run --outdir ./_nfl-contract-bundle
+        run: |
+          # Wrangler requires an assets directory even when only testing code bundling.
+          mkdir -p cloud-28/cloudflare-static-dist
+          printf '<!doctype html><title>dry-run only</title>' > cloud-28/cloudflare-static-dist/index.html
+          npx --yes wrangler@4 deploy --dry-run --outdir ./_nfl-contract-bundle
