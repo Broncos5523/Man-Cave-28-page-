@@ -1,3 +1,4 @@
+import {buildNflPage1} from './nfl-page1-contract.mjs';
 /*
  * MAN CAVE SPORTS BOOK — CLOUDFLARE READ-ONLY PUBLIC DATA RELAY
  * Experimental: only /proxy. Approved board files untouched.
@@ -154,6 +155,32 @@ async function relay(request,ctx) {
   if(edgeCache&&ctx?.waitUntil)ctx.waitUntil(edgeCache.put(cacheKey,answer.clone()));
   return answer;
 }
+async function nflPage1Api(request,ctx){
+  if(request.method!=="GET")return json({ok:false,error:"GET only"},405);
+  const scoreUrl="https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?limit=60";
+  const score=await relay(new Request("https://man-cave-relay.invalid/proxy?url="+encodeURIComponent(scoreUrl)),ctx);
+  if(!score.ok)return json({ok:false,error:"ESPN current NFL scoreboard temporarily unavailable"},503);
+  let scoreboard;
+  try{scoreboard=await score.json()}catch{return json({ok:false,error:"Invalid ESPN scoreboard"},502)}
+  const year=Number(scoreboard?.season?.year||scoreboard?.leagues?.[0]?.season?.year);
+  if(!Number.isInteger(year)||year<2024||year>2035)
+    return json({ok:false,error:"ESPN NFL season not verified"},503);
+  const standingsUrl="https://site.api.espn.com/apis/v2/sports/football/nfl/standings?season="+year+"&seasontype=2";
+  const standing=await relay(new Request("https://man-cave-relay.invalid/proxy?url="+encodeURIComponent(standingsUrl)),ctx);
+  if(!standing.ok)return json({ok:false,error:"Current NFL standings temporarily unavailable"},503);
+  try{
+    const payload=buildNflPage1(scoreboard,await standing.json());
+    return new Response(JSON.stringify(payload),{status:200,headers:{
+      "Content-Type":"application/json; charset=utf-8",
+      "Cache-Control":"public, max-age=30",
+      "X-Content-Type-Options":"nosniff",
+      "X-Man-Cave-Data-Source":"verified-espn-nfl-regular-season",
+      "X-Man-Cave-Contract":"original-page1-nfl-staging"
+    }});
+  }catch(e){
+    return json({ok:false,error:"NFL season feed failed strict contract verification; no data substituted"},503);
+  }
+}
 async function stagingPlayerState(request){
   const url=new URL(request.url);
   if(!['/staging/api/state','/staging/api/heartbeat'].includes(url.pathname))
@@ -183,6 +210,7 @@ async function stagingPlayerState(request){
 export default {
   async fetch(request,env,ctx) {
     const path=new URL(request.url).pathname;
+    if(path==='/api/board/page1_nfl')return nflPage1Api(request,ctx);
     if(path==='/staging/api/state'||path==='/staging/api/heartbeat')
       return stagingPlayerState(request);
     if(path==="/proxy")return relay(request,ctx);
