@@ -1,0 +1,38 @@
+name: Inspect Arizona Football Page4 original exported bridge
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/inspect-arizona-wrapper.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Load verified unchanged Gold Master
+        run: python cloud-28/prepare.py
+      - name: Export exact original Cloudflare staging without deploying
+        run: python cloud-28/build_cloudflare_assets.py
+      - name: Report only readiness and nested-iframe portions of original HTML
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          root=Path('cloud-28/cloudflare-static-dist')
+          p=root/'staging/boards/page4_arizona_cfb.html'
+          txt=p.read_text()
+          print('ARIZONA_WRAPPER_LENGTH',len(txt))
+          lines=txt.replace('><','>\n<').splitlines()
+          terms=('mc-board-ready','mc-board-load-failed','iframe','setTimeout','timeout','postMessage','onload','DOMContentLoaded','loaded')
+          seen=set()
+          for i,line in enumerate(lines):
+              if any(t.lower() in line.lower() for t in terms):
+                  for j in range(max(0,i-1),min(len(lines),i+2)):
+                      if j not in seen:
+                          print('ARIZONA_WRAPPER_LINE',j+1,lines[j][:600])
+                          seen.add(j)
+          print('ARIZONA_WRAPPER_LINES_TOTAL',len(lines))
+          PY
