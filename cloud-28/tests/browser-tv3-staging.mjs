@@ -70,4 +70,32 @@ try{
     throw Error("Returning to approved 28-page rotation failed");
   console.log("TV3_ERRORS",JSON.stringify(errors.slice(0,10)));
   console.log("PASS_TV3_EXISTING_FIREBASE_ASSIGNMENT_PROTOCOL_CLOUDFLARE_STAGING_MOCKED_READ_ONLY");
+
+  // Onn HDMI output is landscape even when the physical TV is portrait.
+  // Verify the approved rotation/fit matrix is mirrored on the selected board.
+  await page.setViewportSize({width:1920,height:1080});
+  await page.goto(base+"/staging/tv3.html?rotate=cw&test=tv3-landscape-mock",{
+    waitUntil:"domcontentloaded",timeout:30000
+  });
+  await page.waitForFunction(()=>!!window.__mockFirebaseThird&&!!window.__MC_ONN_FIT_REPORT__,null,{timeout:16000});
+  await page.evaluate(()=>window.__mockFirebaseThird({type:"board",board:"page4_broncos"}));
+  await page.waitForFunction(()=>window.__MC_TV3_REMOTE__?.getState()?.held==="page4_broncos",null,{timeout:16000});
+  const rotated=await page.evaluate(()=>{
+    const stage=document.getElementById("stage"),frame=document.getElementById("mc-tv3-single-board");
+    return {
+      fit:window.__MC_ONN_FIT_REPORT__,
+      stage:stage.getBoundingClientRect().toJSON(),
+      overlay:frame.getBoundingClientRect().toJSON(),
+      matrix:frame.style.transform,
+      src:frame.getAttribute("src")
+    };
+  });
+  console.log("TV3_LANDSCAPE_ROTATED",JSON.stringify(rotated));
+  for(const dimension of ["x","y","width","height"]){
+    if(Math.abs(rotated.stage[dimension]-rotated.overlay[dimension])>2)
+      throw Error("Landscape Onn overlay misaligned on "+dimension);
+  }
+  if(!rotated.fit.rotated||rotated.fit.mode!=="cw")
+    throw Error("Expected original approved clockwise Onn rotation");
+  console.log("PASS_CLOUDFLARE_TV3_ONN_LANDSCAPE_90DEG_GEOMETRY");
 }finally{await browser.close();}
