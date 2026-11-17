@@ -1,11 +1,11 @@
 import {chromium} from 'playwright';
 
-const url='https://man-cave-28-page.broncos5523.workers.dev/staging/boards/page4_broncos.html?qa=broncos-browser-20261117-v2';
+const url='https://man-cave-28-page.broncos5523.workers.dev/staging/boards/page4_broncos.html?qa=broncos-browser-20261117-v3';
 const browser=await chromium.launch({headless:true});
 const page=await browser.newPage({viewport:{width:720,height:1280},deviceScaleFactor:1});
 const errors=[],responses=[],requests=[];
 page.on('console',msg=>{if(['error','warning'].includes(msg.type()))errors.push({kind:msg.type(),text:msg.text().slice(0,350)});});
-page.on('pageerror',e=>errors.push({kind:'pageerror',text:String(e).slice(0,400)}));
+page.on('pageerror',e=>errors.push({kind:'pageerror',text:(e.stack||String(e)).slice(0,1500)}));
 page.on('requestfailed',request=>{if(!request.url().includes('cdn-inline'))requests.push({url:request.url().slice(0,260),failure:request.failure()?.errorText});});
 page.on('response',r=>{if(/\/proxy\?|\/migration-api\/|espn-fetch-shim|page4_broncos\.html/.test(r.url()))responses.push({status:r.status(),url:r.url().slice(0,250)});});
 // Avoid downloading all original picture assets; inspect data flow only.
@@ -17,9 +17,11 @@ await page.route('**/*',route=>{
 try{
   const navigation=await page.goto(url,{waitUntil:'domcontentloaded',timeout:30000});
   console.log('BROWSER_NAV',navigation?.status(),url);
-  await page.waitForTimeout(33000);
+  await page.waitForTimeout(18000);
   const state=await page.evaluate(()=>({
     shim:window.__MC_CLOUDFLARE_PUBLIC_FEED_RELAY__||null,
+    actualURL:location.href,
+    actualPath:location.pathname,
     fresh:document.querySelector('#fresh')?.textContent||null,
     delay:document.querySelector('#dataDelay')?.textContent||null,
     statValues:[0,1,2].map(n=>document.getElementById('statValue'+n)?.textContent),
