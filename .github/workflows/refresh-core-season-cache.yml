@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - cloud-28/refresh-core-season-cache.py
+      - cloud-28/check-published-season-cache.py
       - cloud-28/core-season-cache.mjs
       - cloud-28/cloudflare-live-proxy.mjs
       - cloud-28/page4*.mjs
@@ -41,3 +42,5 @@ jobs:
           git -C "$data_dir" add espn-core-season-cache.json
           git -C "$data_dir" commit -m 'Refresh verified ESPN current-season statistics'
           git -C "$data_dir" push origin HEAD:cloudflare-live-data
+      - name: Verify exact fresh public feed is available to Cloudflare
+        run: python cloud-28/check-published-season-cache.py
