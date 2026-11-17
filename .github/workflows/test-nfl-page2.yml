@@ -1,0 +1,25 @@
+name: Test Cloudflare NFL Page 2 exact athlete/team leader JSON (no deploy)
+
+on:
+  push:
+    paths:
+      - cloud-28/nfl-page2-contract.mjs
+      - cloud-28/tests/nfl-page2.test.mjs
+      - cloud-28/cloudflare-live-proxy.mjs
+      - .github/workflows/test-nfl-page2.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test original 6 player and 5 team cards plus no-secret Worker reads
+        run: node --test cloud-28/tests/nfl-page2.test.mjs cloud-28/tests/nfl-page1.test.mjs cloud-28/tests/worker-proxy.test.mjs cloud-28/tests/nfl-season-adapter.test.mjs
+      - name: Ensure Worker imports new NFL Page2 module
+        run: |
+          mkdir -p cloud-28/cloudflare-static-dist
+          printf '<!doctype html><title>dry run</title>' > cloud-28/cloudflare-static-dist/index.html
+          npx --yes wrangler@4 deploy --dry-run --outdir ./_nfl-page2-bundle
