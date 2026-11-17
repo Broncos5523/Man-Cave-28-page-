@@ -242,6 +242,16 @@ def main():
             raise RuntimeError("Original player HTML footer changed")
         tv3_html=player_html.replace("</body>",
             '<script defer src="/staging/tv3-remote.js?v=cloudflare-staging-r1"></script></body>')
+        # Display-only staging control: Off / Clockwise / Counterclockwise.
+        # The receiver still reads the exact existing Firebase screens/third
+        # assignment; changing orientation simply reloads this staging URL.
+        # Never modify the locked Gold Master, player timing or TV assignments.
+        rotation_controls=(HERE/"tv3-rotation-controls.html").read_text()
+        if 'id="mc-tv3-rotate-button"' not in rotation_controls or '/production/board/' in rotation_controls:
+            raise RuntimeError("Unexpected Cloudflare orientation-controls source")
+        if tv3_html.count("</body>")!=1:
+            raise RuntimeError("Expected single TV3 body closing tag")
+        tv3_html=tv3_html.replace("</body>",rotation_controls+"</body>")
         save_binary(STAGE/"tv3.html",tv3_html.encode())
         player_js=request(base,"/production/player.js").decode()
         substitutions=[
