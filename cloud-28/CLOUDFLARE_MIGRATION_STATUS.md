@@ -51,6 +51,14 @@ and [phone-friendly report](https://github.com/Broncos5523/Man-Cave-28-page-/blo
 | NCAA Football / Arizona | PASS | PASS | PASS | PASS |
 | NCAA Basketball / Arizona | PASS | PASS | PASS | PASS |
 
+## November 17 Onn preflight and long-rotation gate (latest)
+
+- **Physical Onn preflight page opened successfully per owner.** This confirms the diagnostic page loads on the device; it does **not** certify physical rotation, Firebase switching or session stability. The phone-portrait and TV-landscape Chromium checks both passed 6/6, workflow [44171886769](https://github.com/Broncos5523/Man-Cave-28-page-/actions/runs/44171886769).
+- **Full 28-board endurance cycle has a BLOCKER.** Workflow [44171204428](https://github.com/Broncos5523/Man-Cave-28-page-/actions/runs/44171204428) successfully rotated through 23 successive initial boards with original 30-second timing and one active iframe, then failed to display `page4_arizona_cfb` before the player advanced/recovered to the next CBB board. This is a separate failure from the 28/28 individual board DOM checks.
+- **Targeted independent reproduction** workflow [44175492546](https://github.com/Broncos5523/Man-Cave-28-page-/actions/runs/44175492546) began at Arizona CFB Page 3 and saw three `mc-board-load-failed` messages for the preloaded Page 4 outer wrapper, without ever displaying Page 4. Its nested iframe exists, but the wrapper's `MCBoard.ready` remained false. The original runtime (SHA-locked source inspection workflow [44176822547](https://github.com/Broncos5523/Man-Cave-28-page-/actions/runs/44176822547)) waits up to 20 seconds for the child iframe's `MCBoard.ready`, then emits the failure message. Investigate the nested app's actual initialization/ready bridge and source resource loading; never fabricate a ready signal or change the approved artwork and 30-second cadence.
+- **Next gate:** correct that Cloudflare staging iframe integration, rerun the targeted transition and full cycle, then conduct physical Onn rotation and controller selection/hold/return before authorizing production receiver changes. Leave Render, Firebase assignments and live TVs as-is.
+- Diagnostics are committed in read-only tests; no production cutover has happened.
+
 ## Historical development snapshot — superseded
 
 Everything below was written at the previous 12:46 PM checkpoint, when
