@@ -1,0 +1,18 @@
+name: Probe current 2026 NFL leader and team statistical data alternatives (read only)
+
+on:
+  push:
+    paths:
+      - cloud-28/probe_nfl_p2.py
+      - .github/workflows/probe-nfl-p2.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test public current-season league leader and team statistics via Cloudflare
+        run: python cloud-28/probe_nfl_p2.py
