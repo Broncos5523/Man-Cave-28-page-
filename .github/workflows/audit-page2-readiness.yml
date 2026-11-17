@@ -1,0 +1,47 @@
+name: Audit actual approved Page 2 virtual wrappers and staging dependencies
+
+on:
+  push:
+    paths:
+      - .github/workflows/audit-page2-readiness.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+      - name: Retrieve original unchanged v8l release
+        run: python cloud-28/prepare.py
+      - name: Show original adapted HTTP wrappers and stage assets
+        shell: bash
+        run: |
+          python - <<'PY'
+          import pathlib,re,json,sys,threading,time
+          from urllib.request import urlopen
+          sys.path.insert(0,'cloud-28')
+          import low_bandwidth_server as low
+          server=low.ThreadingHTTPServer(('127.0.0.1',0),low.Handler)
+          server.daemon_threads=True
+          server.born=time.monotonic()
+          threading.Thread(target=server.serve_forever,daemon=True).start()
+          base='http://127.0.0.1:'+str(server.server_port)
+          try:
+            for bid in ['page1_nfl','page2_nfl','page2_nhl','page2_mlb','page2_wnba','page2_cfb','page3_broncos']:
+              with urlopen(base+'/production/board/'+bid,timeout=20) as r:
+                raw=r.read()
+              body=low.optimize_html(raw).decode(errors='replace')
+              print('BOARD',bid,'LEN',len(body),'BEGIN',body[:2500].replace('\n',' ')[:1800],flush=True)
+              print('IFRAME_SOURCES',bid,re.findall(r'<iframe[^>]*src=["\x27]([^"\x27]+)',body,re.I)[:10],flush=True)
+              print('SCRIPT_SOURCES',bid,re.findall(r'<script[^>]*src=["\x27]([^"\x27]+)',body,re.I)[:10],flush=True)
+            for path in ['/production/boards.json','/remote/page2_nfl','/production/api/state']:
+              try:
+                with urlopen(base+path,timeout=20) as r:
+                  content=r.read(400)
+                  print('HTTP',path,r.status,r.headers.get('Content-Type'),content[:170],flush=True)
+              except Exception as e:print('HTTP',path,'ERROR',type(e).__name__,str(e)[:250],flush=True)
+          finally:
+            server.shutdown()
+          PY
