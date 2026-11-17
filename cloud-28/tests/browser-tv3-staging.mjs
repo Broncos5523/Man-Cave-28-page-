@@ -99,26 +99,30 @@ try{
     throw Error("Expected original approved clockwise Onn rotation");
   console.log("PASS_CLOUDFLARE_TV3_ONN_LANDSCAPE_90DEG_GEOMETRY");
 
-  // The on-TV orientation chooser must work with D-pad/click without touching
-  // Firebase assignments or the approved board HTML. It is an outer HUD only.
-  const orientationButton=page.locator('#mc-tv3-rotate-button');
-  if(await orientationButton.count()!==1)throw Error("Onn TV orientation control missing");
-  await orientationButton.click();
-  const menu=page.locator('#mc-tv3-rotate-menu');
-  if(!await menu.isVisible())throw Error("Screen orientation menu failed to open");
-  const cwSelected=await page.locator('#mc-tv3-rotate-menu button[data-mode="cw"]').getAttribute('aria-pressed');
-  if(cwSelected!=='true')throw Error("TV receiver did not identify selected clockwise orientation");
-  await page.locator('#mc-tv3-rotate-menu button[data-mode="ccw"]').click();
-  await page.waitForURL(url=>['/staging/tv3','/staging/tv3.html'].includes(url.pathname)&&url.searchParams.get('rotate')==='ccw'
-    &&url.searchParams.get('test')==='tv3-landscape-mock',{timeout:20000});
-  await page.waitForFunction(()=>window.__MC_ONN_FIT_REPORT__?.mode==="ccw"&&
-    window.__MC_ONN_FIT_REPORT__?.rotated===true,null,{timeout:17000});
-  const oriented=await page.evaluate(()=>({
-    mode:window.__MC_ONN_FIT_REPORT__?.mode,
-    selected:document.querySelector('#mc-tv3-rotate-menu button.selected')?.dataset.mode,
-    parent:window.__MC_TV3_REMOTE__?.getState?.()
-  }));
-  if(oriented.mode!=='ccw'||oriented.selected!=='ccw')
-    throw Error('Onn CCW menu choice did not update the actual rotated stage');
-  console.log('PASS_CLOUDFLARE_TV3_SCREEN_ORIENTATION_MENU_NO_FIREBASE_WRITE',JSON.stringify(oriented));
+  // The owner uses a fixed URL to rotate the physical Onn display.
+  // No on-screen Rotate button/menu should obstruct approved board content.
+  if(await page.locator('#mc-tv3-rotate-button, #mc-tv3-rotate-menu').count()!==0)
+    throw Error("Removed TV3 Rotate tab is still visible in the receiver");
+  await page.goto(base+"/staging/tv3.html?rotate=ccw&test=tv3-landscape-mock",{
+    waitUntil:"domcontentloaded",timeout:30000
+  });
+  await page.waitForFunction(()=>window.__mockFirebaseThird&&
+    window.__MC_ONN_FIT_REPORT__?.mode==="ccw"&&window.__MC_ONN_FIT_REPORT__?.rotated===true,
+    null,{timeout:16000});
+  await page.evaluate(()=>window.__mockFirebaseThird({type:"board",board:"page4_broncos"}));
+  await page.waitForFunction(()=>window.__MC_TV3_REMOTE__?.getState()?.held==="page4_broncos",
+    null,{timeout:16000});
+  const ccw=await page.evaluate(()=>{
+    const stage=document.getElementById("stage"),frame=document.getElementById("mc-tv3-single-board");
+    return {mode:window.__MC_ONN_FIT_REPORT__?.mode,rotated:window.__MC_ONN_FIT_REPORT__?.rotated,
+      geometry:stage.getBoundingClientRect().toJSON(),overlay:frame.getBoundingClientRect().toJSON(),
+      matrix:frame.style.transform,hasRotateMenu:!!document.querySelector("#mc-tv3-rotate-button, #mc-tv3-rotate-menu")};
+  });
+  if(ccw.mode!=="ccw"||!ccw.rotated||ccw.hasRotateMenu)
+    throw Error("Fixed CCW URL or no-menu receiver contract broken");
+  for(const dimension of ["x","y","width","height"]){
+    if(Math.abs(ccw.geometry[dimension]-ccw.overlay[dimension])>2)
+      throw Error("Fixed CCW board assignment misaligned on "+dimension);
+  }
+  console.log("PASS_TV3_FIXED_CCW_URL_NO_ROTATE_TAB",JSON.stringify(ccw));
 }finally{await browser.close();}
