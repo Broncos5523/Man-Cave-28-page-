@@ -109,7 +109,7 @@ try{
   const cwSelected=await page.locator('#mc-tv3-rotate-menu button[data-mode="cw"]').getAttribute('aria-pressed');
   if(cwSelected!=='true')throw Error("TV receiver did not identify selected clockwise orientation");
   await page.locator('#mc-tv3-rotate-menu button[data-mode="ccw"]').click();
-  await page.waitForURL(url=>url.pathname==='/staging/tv3.html'&&url.searchParams.get('rotate')==='ccw'
+  await page.waitForURL(url=>['/staging/tv3','/staging/tv3.html'].includes(url.pathname)&&url.searchParams.get('rotate')==='ccw'
     &&url.searchParams.get('test')==='tv3-landscape-mock',{timeout:20000});
   await page.waitForFunction(()=>window.__MC_ONN_FIT_REPORT__?.mode==="ccw"&&
     window.__MC_ONN_FIT_REPORT__?.rotated===true,null,{timeout:17000});
