@@ -1,6 +1,61 @@
 # Man Cave Sports Book — Cloudflare migration status
 
-Updated: November 17, 2026, 12:46 PM Eastern
+Updated: November 17, 2026, 1:48 PM Eastern
+
+## CURRENT CHECKPOINT — ALL 28 ORIGINAL BOARD RENDERERS VERIFIED IN CLOUDFLARE STAGING
+
+**Automated staging verification: 28/28 original boards PASS.** Evidence: one-shot GitHub Actions run
+[44150844101](https://github.com/Broncos5523/Man-Cave-28-page-/actions/runs/44150844101),
+source revision `32dbf196623e898a9ea39785345683b746e0dcb4`, checked
+November 17, 2026 at 18:48:53 UTC (1:48 PM Eastern). Exact published acceptance
+matrix: [latest.json](https://github.com/Broncos5523/Man-Cave-28-page-/blob/cloudflare-batch-results/latest.json)
+and [phone-friendly report](https://github.com/Broncos5523/Man-Cave-28-page-/blob/cloudflare-batch-results/latest.md).
+
+- **All four original pages of every sport passed original browser rendering checks.**
+  This is current ESPN/official-source payload compared against the *rendered*
+  original DOM, not merely an HTTP 200 or generic screenshot. NHL record
+  formatting and the three college-board fallback cache assumptions were
+  specifically reverified without changing the Gold Master.
+- **All 13 independent browser suites PASSED**, including all 28 initial
+  pages; three parallel five-board renderer groups; priority CBB/NBA/Broncos
+  pages; NBA, NFL and Broncos baselines; all six additional Page 4 player
+  boards, original spotlight rotation, approved 30-second player rotation,
+  and a **mock/read-only** Firebase 32-inch TV controller/hold/return test.
+- **Current-season ESPN Core publication PASSED**: 161 validated records were
+  published from a GitHub runner and the strict fresh public source gate passed.
+  Cloudflare's exact Worker revision was confirmed. Original data adapter
+  unit/contract tests and Worker bundling PASSED.
+- **Production remains UNCHANGED.** No approved October 18 v8l Gold Master
+  files, controller design, Firebase command/TV assignments, Xfinity bridge,
+  Yahoo Fantasy service or physical TV URLs were changed.
+- **Critical remaining cutover gate:** these are automated Chromium/staging
+  results, **not** physical Onn/Fire TV playback verification. Test rotation,
+  dedicated selection/manual hold/return, original imagery, sound/overscan,
+  long-session stability, and iPhone controller routing on the actual
+  32-inch Onn before approving a production TV address change. Do not
+  retire Render until physical verification and explicit owner approval.
+- **Known source exceptions remain intentional:** NFL.com MVP Tracker,
+  NBA MVP editorial tracker and an entire current 2027 bracketology projected
+  field are NOT verified live sources. Approved fallback artwork and clearly
+  labelled historical recap remain; no fabricated awards/brackets.
+- **Separately pending:** Yahoo fantasy API and Xfinity control bridge
+  services remain outside this board migration and have not been cut over.
+
+| Original sport / team | Page 1 | Page 2 | Page 3 | Page 4 |
+|---|---|---|---|---|
+| NFL / Broncos | PASS | PASS | PASS | PASS |
+| NBA / Celtics | PASS | PASS | PASS | PASS |
+| NHL / Bruins | PASS | PASS | PASS | PASS |
+| MLB / Red Sox | PASS | PASS | PASS | PASS |
+| WNBA / Fever | PASS | PASS | PASS | PASS |
+| NCAA Football / Arizona | PASS | PASS | PASS | PASS |
+| NCAA Basketball / Arizona | PASS | PASS | PASS | PASS |
+
+## Historical development snapshot — superseded
+
+Everything below was written at the previous 12:46 PM checkpoint, when
+17/28 were browser-verified. Previous **pending** labels and blocker wording
+below are retained as historical development evidence, **not current status**.
 
 ## Production safety and locked baseline
 
