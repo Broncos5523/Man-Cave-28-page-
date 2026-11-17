@@ -135,11 +135,17 @@ test("Staging shim rewrites only Broncos NFL player-stat requests",async()=>{
     runInNewContext(source,ctx,{filename:"cloudflare-public-feed-shim.js"});
     return win;
   }
-  const broncos=build("/staging/boards/page4_broncos.html");
-  await broncos.fetch("https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/types/2/athletes/4426338/statistics/0?lang=en&region=us");
-  assert.match(urls.pop(),/^\/migration-api\/nfl\/season-stats\?season=2026&athlete=4426338&team=7$/);
-  await broncos.fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard");
-  assert.match(urls.pop(),/^\/proxy\?url=/);
+  const core="https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/types/2/athletes/4426338/statistics/0?lang=en&region=us";
+  for(const pathname of ["/staging/boards/page4_broncos.html","/staging/boards/page4_broncos"]){
+    const broncos=build(pathname);
+    // Both public direct URLs AND the original board's already-proxied URL must work.
+    await broncos.fetch(core);
+    assert.match(urls.pop(),/^\/migration-api\/nfl\/season-stats\?season=2026&athlete=4426338&team=7$/);
+    await broncos.fetch("/proxy?url="+encodeURIComponent(core));
+    assert.match(urls.pop(),/^\/migration-api\/nfl\/season-stats\?season=2026&athlete=4426338&team=7$/);
+    await broncos.fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard");
+    assert.match(urls.pop(),/^\/proxy\?url=/);
+  }
   const other=build("/staging/boards/page1_nfl.html");
   await other.fetch("https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/types/2/athletes/4426338/statistics/0");
   assert.match(urls.pop(),/^\/proxy\?url=/);
