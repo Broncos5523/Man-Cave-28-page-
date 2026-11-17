@@ -5,9 +5,11 @@ const browser=await chromium.launch({headless:true});
 const page=await browser.newPage({viewport:{width:720,height:1280}});
 const errors=[];
 page.on("pageerror",e=>errors.push((e.stack||String(e)).slice(0,600)));
+// General route FIRST. Playwright evaluates newer route handlers before older
+// handlers, so install the Firebase stub AFTER it to prevent real auth access.
+await page.route("**/*",route=>route.request().resourceType()==="image"?route.abort():route.fallback());
 await page.route("https://www.gstatic.com/firebasejs/**",route=>
   route.fulfill({status:200,contentType:"application/javascript",body:"// mocked Firebase SDK by read-only stage acceptance test"}));
-await page.route("**/*",route=>route.request().resourceType()==="image"?route.abort():route.continue());
 await page.addInitScript(()=>{
   window.firebase={
     app(){throw Error("No pre-existing named app in mock");},
