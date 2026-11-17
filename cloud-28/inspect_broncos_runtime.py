@@ -11,6 +11,19 @@ for x in re.findall(r'<script\b[^>]*\bsrc=["\x27]([^"\x27]+)',b,re.I):
     print("SCRIPT",x[:260],flush=True)
 for x in re.findall(r'<link\b[^>]*\bhref=["\x27]([^"\x27]+)',b,re.I):
     if ".css" in x:print("STYLE",x[:200],flush=True)
+# Print only script segments after removing base64 artwork to inspect
+# exact existing upstream requests and which DOM elements they update.
+pruned=re.sub(r"data:image/(?:png|jpe?g|webp|gif|svg\+xml|avif|bmp);base64,[A-Za-z0-9+/=]+","[ORIGINAL_ARTWORK]",b,flags=re.I)
+print("=== BRONCOS PAGE 4 SCRIPT REQUEST CONTRACT ===",flush=True)
+for start in re.finditer(r"(?:fetch\s*\(|\bfetchJSON\s*\(|https://|/proxy\b|/api/board|site\.api\.espn|sports/football/nfl|leader|ticker)",pruned,re.I):
+    a=max(0,start.start()-130);z=min(len(pruned),start.end()+200)
+    snippet=pruned[a:z].replace("\n"," ")
+    if any(x in snippet.lower() for x in ("fetch(","/proxy","api/board","espn.com","api.","nfl/scoreboard")):
+        print("BRONCOS_REQUEST",snippet[:340],flush=True)
+print("=== BRONCOS HTML SCRIPT TAIL ===",flush=True)
+for i,l in enumerate(pruned.splitlines()[-230:],1):
+    if re.search(r"fetch|api|endpoint|ticker|leader|setInterval|scoreboard|ESP|stat|spotlight",l,re.I):
+        print("BRONCOS_CODE",i,l.strip()[:235],flush=True)
 print("=== LIVE DATA REFERENCES INSIDE HTML ===",flush=True)
 for x in re.finditer(r'(?:fetch\s*\(|[A-Za-z\-/]{0,30}api/board|runtime_[a-zA-Z0-9_]+\.js|data-live|standings|espn|ticker)',b,re.I):
     at=x.start()
