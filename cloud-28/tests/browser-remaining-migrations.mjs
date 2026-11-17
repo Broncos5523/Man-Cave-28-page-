@@ -19,11 +19,19 @@ try{
     });
     const result={board,pass:false};
     try{
-      const response=await page.goto(host+'/staging/boards/'+board+'.html?migration=remaining-r2',{waitUntil:'domcontentloaded',timeout:45000});
+      const apiPromise=page.waitForResponse(r=>r.url().includes('/api/board/'+board)&&r.ok(),{timeout:70000});
+      const response=await page.goto(host+'/staging/boards/'+board+'.html?migration=remaining-r3',{waitUntil:'domcontentloaded',timeout:45000});
       if(response?.status()!==200)throw Error('Board navigation failed');
-      await page.waitForFunction(id=>{
+      // Compare the rendered DOM against the exact current-season HTTP payload.
+      // Some original approved boards never persist the JSON to localStorage;
+      // using that optional cache as the source falsely failed real page data.
+      const apiResponse=await apiPromise;
+      const verifiedFeed=await apiResponse.json();
+      if(verifiedFeed?.board!==board||verifiedFeed?.dataState!=='current')
+        throw Error('Current-season board JSON was not verified');
+      await page.waitForFunction(({id,expected})=>{
         try{
-          const f=JSON.parse(localStorage.getItem('mc-v2-feed-'+id));if(f?.dataState!=='current'||!window.MCBoard?.ready)return false;
+          const f=expected;if(f?.dataState!=='current'||!window.MCBoard?.ready)return false;
           const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
           const numeric=s=>Number(String(s).replace(/[%+,]/g,''));
           if(id.startsWith('page2_'))return f.leaders.players.every(p=>[...document.querySelectorAll('[data-athlete-id]')].some(c=>c.dataset.athleteId===p.id&&
@@ -34,9 +42,9 @@ try{
             c.querySelector('.place')?.textContent.includes('#'+p.rank)));
           return true;
         }catch{return false;}
-      },board,{timeout:55000});
-      Object.assign(result,await page.evaluate(id=>{
-        const f=JSON.parse(localStorage.getItem('mc-v2-feed-'+id)),sport=f.context.sport;
+      },{id:board,expected:verifiedFeed},{timeout:55000});
+      Object.assign(result,await page.evaluate(({id,f})=>{
+        const sport=f.context.sport;
         const cfg={nhl:['.srow','.srec'],mlb:['.standRow','.standRec'],wnba:['.standing-row','.record']}[sport];
         const rows=cfg?[...document.querySelectorAll(cfg[0])].map(r=>r.querySelector(cfg[1])?.textContent.trim()):[];
         return {year:f.context.statsYear,mode:f.context.mode,teamCount:f.standings.groups.flatMap(g=>g.entries).length,
@@ -45,7 +53,7 @@ try{
           apNames:id==='page1_cfb'?[...document.querySelectorAll('.rankrow .rteam')].map(r=>r.textContent.trim()):[],
           expectedAP:f.rankings?.poll.ranks.slice(0,25).map(r=>r.team.location||r.team.shortDisplayName||r.team.nickname||r.team.name),
           loadedImages:[...document.images].filter(i=>i.complete&&i.naturalWidth>0).length};
-      },board));
+      },{id:board,f:verifiedFeed}));
       if(errors.length)throw Error('JavaScript: '+errors.join(' | '));
       if(!result.loadedImages)throw Error('No original imagery loaded');
       if(board.startsWith('page1_')&&board!=='page1_cfb'){
