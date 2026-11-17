@@ -1,0 +1,22 @@
+name: Inspect approved v8l live API contracts for Cloudflare (no deploy)
+
+on:
+  push:
+    paths:
+      - cloud-28/inspect_live_contract.py
+      - .github/workflows/inspect-live-contract.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - name: Retrieve checked original release
+        run: python cloud-28/prepare.py
+      - name: Examine original routes and sample live APIs read-only
+        run: python cloud-28/inspect_live_contract.py
