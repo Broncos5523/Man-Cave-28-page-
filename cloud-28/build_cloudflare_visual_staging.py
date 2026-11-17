@@ -96,6 +96,8 @@ def make_index(boards):
             '<p>Exact approved board layouts and artwork served with optimized image caching. '
             'Live statistics, animations, Firebase commands and Onn playback are NOT yet verified. '
             'Do not change your TV receiver address.</p></div>'
+            '<p><a style="background:#19314b;border-color:#4df0bd;color:#fff" href="/staging/player.html?rotate=off">'
+            '▶ Open original 28-board rotation preview (30 seconds per page)</a></p>'
             '<section class="grid">'+''.join(links)+'</section></main></body></html>').encode()
 
 def main():
@@ -136,6 +138,42 @@ def main():
         save_binary(OUT/"production"/"spotlight-state.js",(approved.APP/"production"/"spotlight-state.js").read_bytes())
         save_binary(STAGE/"board-standalone-host.js",(HERE/"cloudflare-standalone-board-host.js").read_bytes())
         save_binary(STAGE/"espn-fetch-shim.js",(HERE/"cloudflare-public-feed-shim.js").read_bytes())
+        # Export the approved production player into a separate staging URL.
+        # Only transport URLs are rewritten, not timing, animation, page order,
+        # scoring/stat logic, spotlight state, or the Onn orientation fit.
+        player_html=(approved.APP/"production"/"player.html").read_text()
+        anchor='<script defer src="/production/player.js"></script>'
+        if player_html.count(anchor)!=1:
+            raise RuntimeError("Original player HTML changed; cannot stage safely")
+        mode_script="""<script>
+(function(){
+ const q=new URLSearchParams(location.search);
+ const rotate=q.get('rotate')||'off';
+ window.__MC_ONN_ROTATION__=['cw','ccw','off'].includes(rotate)?rotate:'off';
+ window.__MC_TV_FIT__=q.get('fit')==='contain'?'contain':'fill';
+ window.__MC_STAGING_ROTATION__=true;
+})();
+</script>"""
+        player_html=player_html.replace(anchor,mode_script+'<script defer src="/staging/player.js"></script>')
+        save_binary(STAGE/"player.html",player_html.encode())
+        player_js=request(base,"/production/player.js").decode()
+        substitutions=[
+            ("'/production/boards.json'","'/staging/boards.json'"),
+            ("'/production/api/state'","'/staging/api/state'"),
+            ("'/production/api/heartbeat'","'/staging/api/heartbeat'"),
+            ("frame.src='/production/board/'+encodeURIComponent(board.id)",
+             "frame.src='/staging/boards/'+encodeURIComponent(board.id)+'.html'")
+        ]
+        for old,new in substitutions:
+            if old not in player_js:
+                raise RuntimeError("Original approved player transport anchor changed: "+old)
+            player_js=player_js.replace(old,new)
+        if "const DUR=30000;" not in player_js:
+            raise RuntimeError("Approved 30-second rotation duration changed")
+        if "frame.src='/staging/boards/'" not in player_js:
+            raise RuntimeError("Original player staging frame transport unresolved")
+        save_binary(STAGE/"player.js",player_js.encode())
+        save_binary(STAGE/"boards.json",(approved.APP/"production"/"boards.json").read_bytes())
         save_binary(STAGE/"index.html",make_index(boards))
         # Preserve versioned Gold Master scripts and cloud adapter runtime
         # patches exactly where the original HTTP server exposes them.
