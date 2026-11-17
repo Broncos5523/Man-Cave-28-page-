@@ -1,0 +1,62 @@
+name: Verify deployed Cloudflare public data relay (public read-only URLs)
+
+on:
+  push:
+    paths:
+      - .github/workflows/check-cloudflare-public-relay.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  public-url:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate deployed Worker, original board, and ESPN response
+        shell: bash
+        run: |
+          python - <<'PY'
+          import time,json,urllib.request,urllib.parse,urllib.error
+          root="https://man-cave-28-page.broncos5523.workers.dev"
+          def read(path,limit=2000000):
+              req=urllib.request.Request(root+path,headers={"User-Agent":"ManCaveSportsBookPublicTest/1.0","Accept":"application/json,text/html"})
+              with urllib.request.urlopen(req,timeout=18) as r:
+                  return r.status,r.headers,r.read(limit)
+          health=None
+          for i in range(8):
+              try:
+                  status,headers,data=read("/migration-api/health")
+                  health=json.loads(data)
+                  if status==200 and health.get("publicEspnRelay")=="enabled":break
+              except Exception as e:
+                  print("Worker readiness attempt",i+1,type(e).__name__,str(e)[:110],flush=True)
+              time.sleep(10)
+          if not health or health.get("publicEspnRelay")!="enabled":
+              raise SystemExit("Cloudflare has not exposed the tested live relay yet; not claiming deployment")
+          print("CLOUDFLARE_RELAY_HEALTH",json.dumps(health),flush=True)
+          status,headers,body=read("/staging/boards/page4_broncos.html")
+          assert status==200 and b"/staging/espn-fetch-shim.js" in body
+          print("ORIGINAL_BRONCOS_STAGING",status,len(body),"bytes, same-origin shim found",flush=True)
+          samples=[
+              ("nfl-scoreboard","https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"),
+              ("denver-2026-roster","https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/teams/7/athletes?limit=100"),
+          ]
+          success=0
+          for name,url in samples:
+              try:
+                  path="/proxy?url="+urllib.parse.quote(url,safe="")
+                  status,headers,body=read(path)
+                  data=json.loads(body)
+                  print("PUBLIC_DATA",name,"HTTP",status,"bytes",len(body),"keys",list(data)[:9],"origin",headers.get("X-Man-Cave-Data-Source"),flush=True)
+                  if name=="nfl-scoreboard":
+                      assert isinstance(data.get("events"),list),"ESPN scoreboard missing events"
+                  else:
+                      assert isinstance(data.get("items"),list),"ESPN roster missing items"
+                  success+=1
+              except Exception as e:
+                  print("PUBLIC_DATA",name,"UNAVAILABLE",type(e).__name__,str(e)[:190],flush=True)
+          print("CLOUDFLARE_PUBLIC_FEED_VERIFICATION",success,"of",len(samples),"upstreams usable",flush=True)
+          if success<1:
+              raise SystemExit("No live ESPN upstream verified yet. Do not claim statistics restored.")
+          PY
