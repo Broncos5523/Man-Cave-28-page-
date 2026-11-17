@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#08111f">
+<title>Man Cave Sports Book | Onn Device Preflight</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#08111f;color:#eff6ff;font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:760px;margin:auto;padding:24px 18px 55px}
+small,.subtle{color:#a8bad1}h1{font-size:clamp(24px,5vw,36px);margin:4px 0 8px;letter-spacing:.025em}
+h2{font-size:18px;margin:25px 0 12px}
+.eyebrow{font-size:11px;letter-spacing:.17em;color:#ffcf60;font-weight:800}
+.pill{display:inline-block;padding:5px 9px;border:1px solid #456481;border-radius:20px;font-size:12px;color:#bdddf5}
+.note,.panel{background:#102236;border:1px solid #35516d;border-radius:14px;padding:15px;margin:16px 0}
+.note{border-left:4px solid #efc261}.note strong{color:#fff5d4}
+.row{display:flex;gap:10px;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #263e52}
+.row:last-child{border:0}.status{font-size:12px;padding:4px 8px;border-radius:999px;border:1px solid #52718b;white-space:nowrap}
+.status.ok{color:#95f5c1;border-color:#317955}.status.fail{color:#ffb5ab;border-color:#9a4840}
+.status.pending{color:#ffe09b;border-color:#8c6b32}
+.detail{display:block;margin:4px 0 0;font-size:12px;color:#a8bdd1;overflow-wrap:anywhere}
+button,a.action{background:#143c61;color:white;border:1px solid #5586b4;border-radius:10px;padding:12px 14px;font-weight:750;text-align:center;text-decoration:none;cursor:pointer;font:inherit}
+a.action{display:block}button:focus,a:focus,select:focus{outline:2px solid #f5cd66;outline-offset:2px}
+button.primary,a.primary{background:#087867;border-color:#35bfa9}
+button[disabled]{opacity:.6}.actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:10px;margin-top:12px}
+select{width:100%;padding:12px 10px;background:#081727;color:white;border:1px solid #456885;border-radius:10px;font:inherit}
+fieldset{border:0;padding:0;margin:0}.controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+label{display:block;font-weight:700;font-size:13px;margin-bottom:7px}
+code{background:#0a1526;padding:2px 5px;border-radius:4px;overflow-wrap:anywhere}
+#summary{font-weight:800;margin:13px 0 0;color:#ffda8b}
+#summary.pass{color:#9cf3c6}
+#summary.fail{color:#ffaea3}
+footer{font-size:12px;color:#9aafc5;margin-top:23px}
+@media(max-width:410px){.controls{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">MAN CAVE SPORTS BOOK / SAFE DEVICE CHECK</div>
+<h1>Cloudflare TV preflight</h1>
+<p class="subtle">Test the browser and public sports-data delivery before moving your 32-inch Onn receiver. This page is separate from your 28 approved board designs.</p>
+<div class="note"><strong>No TV changes from this page.</strong> These checks only read public files and ESPN data. They never sign in to Firebase, send controller commands, change assignments, or touch Render.</div>
+<span class="pill">28 / 28 previously browser-verified</span>
+<span class="pill">Physical Onn acceptance still pending</span>
+<h2>Device and data checks</h2>
+<div class="panel">
+  <div class="row"><div>Secure Cloudflare connection<span class="detail" id="url-detail"></span></div><span class="status pending" id="secure-status">CHECKING</span></div>
+  <div class="row"><div>Device screen and orientation<span class="detail" id="screen-detail"></span></div><span class="status pending" id="screen-status">CHECKING</span></div>
+  <div class="row"><div>Browser animation support<span class="detail" id="motion-detail"></span></div><span class="status pending" id="motion-status">CHECKING</span></div>
+  <div class="row"><div>Cloudflare Worker health<span class="detail" id="worker-detail"></span></div><span class="status pending" id="worker-status">CHECKING</span></div>
+  <div class="row"><div>All 28 approved board IDs<span class="detail" id="manifest-detail"></span></div><span class="status pending" id="manifest-status">CHECKING</span></div>
+  <div class="row"><div>Current-season NFL data through Cloudflare<span class="detail" id="data-detail"></span></div><span class="status pending" id="data-status">CHECKING</span></div>
+  <div id="summary" aria-live="polite">Running read-only checks…</div>
+  <button id="rerun" type="button" style="margin-top:13px">Run checks again</button>
+</div>
+<h2>Preview on the device</h2>
+<p class="subtle">Choose the same rotation and fit the Onn uses. Opening the rotation preview does not send a Firebase command.</p>
+<div class="controls">
+ <fieldset><label for="rotation">Screen rotation</label><select id="rotation">
+  <option value="off">Off (native portrait)</option>
+  <option value="cw">Clockwise 90°</option>
+  <option value="ccw">Counterclockwise 90°</option>
+ </select></fieldset>
+ <fieldset><label for="fit">Screen fit</label><select id="fit">
+  <option value="fill">Fill screen</option>
+  <option value="contain">Contain / no crop</option>
+ </select></fieldset>
+</div>
+<div class="actions">
+ <a id="rotation-link" class="action primary" href="/staging/player.html?rotate=off">Open 28-board rotation</a>
+ <a id="receiver-link" class="action" href="/staging/tv3.html?rotate=off">Open read-only receiver</a>
+</div>
+<div class="note">
+ <strong>Receiver test warning:</strong> the receiver preview reads the existing <code>screens/third</code> Firebase assignment and displays the selected board. It does not write commands, but it may show the current assigned content instead of rotating. Use a test browser/TV first.
+</div>
+<h2>What this cannot certify</h2>
+<p class="subtle">Device-specific SSL behavior, HDMI overscan, hardware sleep/screensaver, audio, sustained stability, and actual iPhone-to-Onn switching still require observation on the physical TV. A green result here is a prerequisite, not permission to replace the production URL.</p>
+<footer>Approved October 18 v8l artwork and timing are unchanged. Source and automated verification: <a style="color:#99dced" href="https://github.com/Broncos5523/Man-Cave-28-page-/blob/cloudflare-batch-results/latest.md">read-only GitHub report</a>.</footer>
+</main>
+<script>
+(function(){
+  'use strict';
+  var ids=['secure','screen','motion','worker','manifest','data'],running=false;
+  function el(id){return document.getElementById(id)}
+  function state(id,ok,detail){
+    var badge=el(id+'-status');
+    badge.className='status '+(ok===null?'pending':ok?'ok':'fail');
+    badge.textContent=ok===null?'CHECKING':ok?'PASS':'CHECK';
+    el(id+'-detail').textContent=detail||'';
+  }
+  function requested(url,timeout){
+    if(typeof fetch!=='function')return Promise.reject(Error('Fetch API not supported'));
+    var timer,controller=typeof AbortController==='function'?new AbortController():null;
+    var opts={cache:'no-store',credentials:'omit'};
+    if(controller){opts.signal=controller.signal;timer=setTimeout(function(){controller.abort()},timeout||12000)}
+    return fetch(url,opts).then(function(res){
+      if(!res.ok)throw Error('HTTP '+res.status);
+      return res.json();
+    }).then(function(data){clearTimeout(timer);return data},
+      function(e){clearTimeout(timer);throw e});
+  }
+  function links(){
+    var rotate=el('rotation').value,fit=el('fit').value;
+    var query='?rotate='+encodeURIComponent(rotate)+'&fit='+encodeURIComponent(fit);
+    el('rotation-link').href='/staging/player.html'+query;
+    el('receiver-link').href='/staging/tv3.html'+query;
+  }
+  function finish(){
+    var pass=ids.filter(function(id){return el(id+'-status').className.indexOf('ok')>=0}).length;
+    var line=el('summary');
+    line.textContent=pass+'/6 device/network checks passed. No controller or TV commands sent.';
+    line.className=pass===6?'pass':'fail';
+    running=false;el('rerun').disabled=false;
+  }
+  function run(){
+    if(running)return;
+    running=true;el('rerun').disabled=true;
+    ids.forEach(function(id){state(id,null,'')});
+    state('secure',location.protocol==='https:'&&location.hostname==='man-cave-28-page.broncos5523.workers.dev',location.origin);
+    var w=window.innerWidth,h=window.innerHeight;
+    state('screen',w>0&&h>0,w+' × '+h+' CSS px · pixel ratio '+(window.devicePixelRatio||1)+' · '+(w>h?'landscape':'portrait'));
+    var ua=navigator.userAgent||'unknown';
+    el('screen-detail').textContent+=' · '+ua.slice(0,115);
+    var checks=[];
+    var animation=new Promise(function(resolve){
+      if(typeof requestAnimationFrame!=='function'){state('motion',false,'Animation frame API unavailable');resolve();return;}
+      var count=0,last=0,t0=Date.now();
+      function tick(t){if(count&&t<=last)return;
+        count++;last=t;
+        if(count>=5){state('motion',true,'5 browser animation frames received');resolve();return;}
+        if(Date.now()-t0>2000){state('motion',false,'Frames stalled');resolve();return;}
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+      setTimeout(function(){if(count<5){state('motion',false,'Animation frames delayed or unavailable');resolve()}},2400);
+    });
+    checks.push(animation);
+    checks.push(requested('/migration-api/health',12000).then(function(d){
+      state('worker',d&&d.ok===true,'Public Worker health response valid');
+    }).catch(function(e){state('worker',false,e.message)}));
+    checks.push(requested('/staging/boards.json',12000).then(function(d){
+      var boards=d&&d.boards||[];
+      var found={};boards.forEach(function(b){if(b&&b.id)found[b.id]=1});
+      state('manifest',boards.length===28&&Object.keys(found).length===28,
+        boards.length+' total · '+Object.keys(found).length+' unique board IDs');
+    }).catch(function(e){state('manifest',false,e.message)}));
+    checks.push(requested('/api/board/page1_nfl',30000).then(function(d){
+      var count=0;(d.standings&&d.standings.groups||[]).forEach(function(g){count+=(g.entries||[]).length});
+      var year=d.context&&d.context.statsYear;
+      state('data',d.dataState==='current'&&count===32&&year>=2026,
+        'Season '+(year||'?')+' · '+count+' NFL teams · '+(d.dataState||'unverified'));
+    }).catch(function(e){state('data',false,e.message)}));
+    Promise.all(checks).then(finish,finish);
+  }
+  el('rerun').addEventListener('click',run);
+  el('rotation').addEventListener('change',links);
+  el('fit').addEventListener('change',links);
+  links();run();
+})();
+</script>
+</body>
+</html>
