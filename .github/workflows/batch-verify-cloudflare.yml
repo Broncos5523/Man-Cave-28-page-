@@ -6,6 +6,7 @@ on:
       - .github/workflows/batch-verify-cloudflare.yml
       - cloud-28/tests/audit-public-core-feed.py
       - cloud-28/tests/collect-batch-report.py
+      - cloud-28/tests/batch-priority-renderers.mjs
       - cloud-28/tests/browser-remaining-migrations.mjs
       - cloud-28/tests/browser-native-page4.mjs
       - cloud-28/cloudflare-live-proxy.mjs
@@ -60,6 +61,7 @@ jobs:
   browsers:
     name: Original-browser check — ${{ matrix.check }}
     needs: deployed
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
@@ -68,7 +70,7 @@ jobs:
       matrix:
         include:
           - check: priority
-            script: cloud-28/tests/browser-priority-migrations.mjs
+            script: cloud-28/tests/batch-priority-renderers.mjs
           - check: remaining-pages
             script: cloud-28/tests/browser-remaining-migrations.mjs
           - check: basketball-player-pages
@@ -81,6 +83,14 @@ jobs:
             script: cloud-28/tests/browser-tv3-staging.mjs
           - check: all-28-initialization
             script: cloud-28/tests/audit-all-board-views.mjs
+          - check: nfl-page1
+            script: cloud-28/tests/browser-nfl-page1-live.mjs
+          - check: nfl-page2
+            script: cloud-28/tests/browser-nfl-page2-live.mjs
+          - check: nba-page1
+            script: cloud-28/tests/browser-nba-page1-live.mjs
+          - check: broncos-page4
+            script: cloud-28/tests/browser-broncos-staging.mjs
     steps:
       - uses: actions/checkout@v4
       - name: Install browser
@@ -164,7 +174,7 @@ jobs:
           echo "| 28-board JSON contracts | $CONTRACTS |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Fresh verified ESPN Core source | $SOURCE |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Exact Cloudflare staging deployment | $DEPLOY |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Seven independent browser suites | $BROWSERS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Eleven independent browser suites | $BROWSERS |" >> "$GITHUB_STEP_SUMMARY"
           echo '' >> "$GITHUB_STEP_SUMMARY"
           echo 'Physical Onn TV / production controller cutover remains separate and requires user approval.' >> "$GITHUB_STEP_SUMMARY"
           if [[ "$CONTRACTS" != success || "$SOURCE" != success || "$DEPLOY" != success || "$BROWSERS" != success ]]; then
