@@ -27,7 +27,27 @@ try{
   console.log("ROTATION_FIRST",JSON.stringify(initial));
   if(initial.current!=="page1_nfl"||initial.index!==0||!initial.spotlight)
     throw Error("Original first board or approved spotlight state missing");
-  await page.waitForFunction(()=>window.__MC_PRODUCTION?.current==="page2_nfl",{timeout:53000});
+  // Let original 30-second deadline elapse; diagnose iframe readiness
+  // before asserting. waitForFunction options are the *third* argument.
+  try{
+    await page.waitForFunction(()=>window.__MC_PRODUCTION?.current==="page2_nfl",null,{timeout:55000});
+  }catch(e){
+    const stuck=await page.evaluate(()=>({
+      current:window.__MC_PRODUCTION?.current,
+      index:window.__MC_PRODUCTION?.index,
+      frames:[...document.querySelectorAll('#stage iframe')].map(f=>({
+        board:f.dataset.board,url:f.src,visible:f.classList.contains('current'),
+        runtimeReady:f.contentWindow?.MCBoard?.ready,
+        runtimeActive:f.contentWindow?.MCBoard?.active,
+        runtimeError:f.contentWindow?.__MC_STAGING_HOST__||null
+      })),
+      events:window.__MC_PRODUCTION_EVENTS?.slice(-18)
+    }));
+    console.log('ROTATION_STUCK',JSON.stringify(stuck));
+    console.log('ROTATION_REQUESTS_ON_FAILURE',JSON.stringify(reqs.slice(-100)));
+    console.log('ROTATION_ERRORS_ON_FAILURE',JSON.stringify(errors.slice(0,20)));
+    throw e;
+  }
   const second=await page.evaluate(()=>({
     current:window.__MC_PRODUCTION?.current,
     index:window.__MC_PRODUCTION?.index,
