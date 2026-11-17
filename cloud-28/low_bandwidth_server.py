@@ -99,6 +99,14 @@ class Handler(approved.Handler):
             body=optimize_html(body.encode("utf-8") if isinstance(body,str) else body)
         return super().reply(body,ct,status)
 
+    def respond(self,body,*args,**kwargs):
+        # Most original Gold Master pages use production_server.Handler.respond()
+        # rather than the cloud adapter's reply(). Both paths must be optimized.
+        path=urlsplit(self.path).path
+        if self.command=="GET" and path.startswith("/production/board/"):
+            body=optimize_html(body.encode("utf-8") if isinstance(body,str) else body)
+        return super().respond(body,*args,**kwargs)
+
     def do_GET(self):
         path=unquote(urlsplit(self.path).path)
         asset=FILE_RE.fullmatch(path)
