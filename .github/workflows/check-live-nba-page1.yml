@@ -1,0 +1,25 @@
+name: Public NBA Page 1 2026-27 live Cloudflare/browser verification
+
+on:
+  push:
+    paths:
+      - cloud-28/tests/public-nba-page1.py
+      - cloud-28/tests/browser-nba-page1-live.mjs
+      - .github/workflows/check-live-nba-page1.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  nba:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify ESPN 2026-27 season and two full NBA conference tables from Cloudflare
+        run: python cloud-28/tests/public-nba-page1.py
+      - name: Install Chromium
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Run original approved NBA portrait page with live Cloudflare data
+        run: node cloud-28/tests/browser-nba-page1-live.mjs
