@@ -71,8 +71,15 @@ jobs:
         include:
           - check: priority
             script: cloud-28/tests/batch-priority-renderers.mjs
-          - check: remaining-pages
+          - check: remaining-group-a
             script: cloud-28/tests/browser-remaining-migrations.mjs
+            boards: page1_nhl,page1_mlb,page1_wnba,page1_cfb,page2_nhl
+          - check: remaining-group-b
+            script: cloud-28/tests/browser-remaining-migrations.mjs
+            boards: page2_mlb,page2_wnba,page2_cfb,page2_cbb,page3_celtics
+          - check: remaining-group-c
+            script: cloud-28/tests/browser-remaining-migrations.mjs
+            boards: page3_bruins,page3_redsox,page3_fever,page3_arizona_cfb,page3_arizona_cbb
           - check: basketball-player-pages
             script: cloud-28/tests/browser-page4-migrations.mjs
           - check: native-player-pages
@@ -99,6 +106,8 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Test original renderer against Cloudflare (no TV writes)
         shell: bash
+        env:
+          REMAINING_BOARDS: ${{ matrix.boards }}
         run: |
           set -o pipefail
           node ${{ matrix.script }} 2>&1 | tee browser-check.log
@@ -183,7 +192,7 @@ jobs:
           echo "| 28-board JSON contracts | $CONTRACTS |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Fresh verified ESPN Core source | $SOURCE |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Exact Cloudflare staging deployment | $DEPLOY |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Eleven independent browser suites | $BROWSERS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Thirteen independent browser suites | $BROWSERS |" >> "$GITHUB_STEP_SUMMARY"
           echo '' >> "$GITHUB_STEP_SUMMARY"
           echo 'Physical Onn TV / production controller cutover remains separate and requires user approval.' >> "$GITHUB_STEP_SUMMARY"
           if [[ "$CONTRACTS" != success || "$SOURCE" != success || "$DEPLOY" != success || "$BROWSERS" != success ]]; then
