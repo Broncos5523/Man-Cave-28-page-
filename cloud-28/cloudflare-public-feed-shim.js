@@ -16,6 +16,23 @@
   const native=window.fetch.bind(window);
   window.fetch=function(input,init){
     const raw=typeof input==='string'?input:(input&&typeof input.url==='string'?input.url:'');
+    // The approved Gold Master calls proxied() BEFORE fetch(), producing
+    // /proxy?url=<encoded ESPN Core URL>. Intercept that actual request shape
+    // as well as direct HTTPS; otherwise the Worker returns a Core 403.
+    if(raw&&location.pathname==='/staging/boards/page4_broncos.html'){
+      try{
+        const source=raw.startsWith('/proxy?')
+          ? new URL(raw,'https://man-cave-local.invalid').searchParams.get('url')
+          : raw;
+        const core=new URL(source);
+        const match=core.hostname==='sports.core.api.espn.com'&&
+          /^\/v2\/sports\/football\/leagues\/nfl\/seasons\/(\d{4})\/types\/2\/athletes\/(\d{5,10})\/statistics(?:\/0)?\/?$/.exec(core.pathname);
+        if(match){
+          return native('/migration-api/nfl/season-stats?season='+encodeURIComponent(match[1])+
+            '&athlete='+encodeURIComponent(match[2])+'&team=7',init);
+        }
+      }catch(e){/* Leave unrelated traffic unchanged. */}
+    }
     if(raw&&raw.startsWith('https://')){
       try{
         const url=new URL(raw);
