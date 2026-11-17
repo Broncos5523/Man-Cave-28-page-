@@ -1,0 +1,64 @@
+name: Build cacheable board image CDN package (no deployment)
+
+on:
+  push:
+    paths:
+      - .github/workflows/build-v8l-static-assets.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch checksum-verified 28-board Gold Master
+        run: python cloud-28/prepare.py
+      - name: Extract and package exact-byte image assets
+        shell: bash
+        run: |
+          python - <<'PY'
+          import sys, shutil, hashlib, json, pathlib
+          sys.path.insert(0,"cloud-28")
+          from low_bandwidth_server import prime_approved_assets, ASSET_ROOT, STATS, ORIGIN_ROOT
+          prime_approved_assets()
+          out=pathlib.Path("asset-cdn-dist")
+          target=out/"cdn-inline"
+          target.mkdir(parents=True,exist_ok=True)
+          images=sorted(ASSET_ROOT.iterdir())
+          assert len(images)>=300, "Unexpectedly few original image assets"
+          manifest={"origin_release_sha256":"e6651aa3db2dae42f38d693f1e6690de7009a0a6e34ed6ee0bc2a26cabbeed3f",
+                    "note":"Exact bytes from approved 28-board production release; no image modifications.",
+                    "assets":[]}
+          for p in images:
+              name=p.name
+              digest=name.split(".")[0]
+              assert len(digest)==64 and hashlib.sha256(p.read_bytes()).hexdigest()==digest
+              shutil.copyfile(p,target/name)
+              manifest["assets"].append({"path":"/cdn-inline/"+name,"bytes":p.stat().st_size})
+          (out/"manifest.json").write_text(json.dumps(manifest,separators=(",",":")))
+          (out/"README.txt").write_text(
+            "MAN CAVE SPORTS BOOK — EXACT APPROVED v8l IMAGE ASSETS\n"
+            "Generated, not deployed. The original 28 board designs are unchanged.\n"
+            "These files are suitable for a separately configured static asset host.\n"
+            "Never swap the Onn receiver URL until live data and caching are verified.\n"
+          )
+          total=sum(x["bytes"] for x in manifest["assets"])
+          print("PASS",len(images),"unique SHA256-verified assets,",round(total/1048576,2),"MiB",flush=True)
+          with open(__import__("os").environ["GITHUB_STEP_SUMMARY"],"a") as f:
+              f.write("### Original exact-byte static asset package\n"+
+                      "- Original archive SHA verified\n"+
+                      "- "+str(len(images))+" deduplicated images\n"+
+                      "- "+str(round(total/1048576,2))+" MiB total\n"+
+                      "- No production deployment or visual changes\n")
+          PY
+      - name: Upload separate hosting package
+        uses: actions/upload-artifact@v4
+        with:
+          name: 28-board-static-assets
+          path: asset-cdn-dist/
+          retention-days: 7
+          compression-level: 6
