@@ -32,10 +32,15 @@ jobs:
           assert len(board_files)==28,len(board_files)
           for p in board_files:
               content=p.read_bytes()
-              assert content.count(b'<script src="/staging/espn-fetch-shim.js"></script>')==1,p
+              assert content.count(b'/staging/espn-fetch-shim.js?v=preproxied-r3')==1,p
+              assert content.count(b'/staging/board-standalone-host.js?v=standalone-r1')==1,p
+              assert content.count(b'/production/spotlight-state.js')==1,p
               assert b"data:image/" not in content.lower(),p
           shim=(root/"staging/espn-fetch-shim.js").read_text()
           assert "window.fetch" in shim and "/proxy?url=" in shim
+          assert (root/"production/spotlight-state.js").is_file()
+          assert "MCSpotlightState" in (root/"production/spotlight-state.js").read_text()
+          assert "mc-board-ready" in (root/"staging/board-standalone-host.js").read_text()
           assert len(list((root/"cdn-inline").iterdir()))==316
           print("PASS 28/28 unchanged Gold Master board staging copies load controlled public feed shim",flush=True)
           PY
