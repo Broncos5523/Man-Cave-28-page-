@@ -245,7 +245,13 @@ def main():
         # The owner's fixed ?rotate=ccw receiver URL already orients the TV.
         # Do not overlay an on-screen Rotate tab/menu over approved content.
         # Preserve query-controlled cw/ccw/off and the Firebase receiver.
+        # A read-only diagnostic overlay is enabled only when the TV URL
+        # explicitly includes ?debug=1. The normal receiver stays clean.
+        tv3_html=tv3_html.replace("</body>",
+            '<script defer src="/staging/tv3-readonly-diagnostics.js?v=1"></script></body>')
         save_binary(STAGE/"tv3.html",tv3_html.encode())
+        save_binary(STAGE/"tv3-readonly-diagnostics.js",
+            (HERE/"tv3-readonly-diagnostics.js").read_bytes())
         player_js=request(base,"/production/player.js").decode()
         substitutions=[
             ("'/production/boards.json'","'/staging/boards.json'"),
