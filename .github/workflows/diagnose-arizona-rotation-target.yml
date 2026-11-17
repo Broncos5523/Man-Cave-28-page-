@@ -1,0 +1,36 @@
+name: Targeted Arizona Football Page4 player readiness
+on:
+  push:
+    branches: [main]
+    paths:
+      - cloud-28/tests/browser-arizona-rotation-target.mjs
+      - .github/workflows/diagnose-arizona-rotation-target.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  checks: read
+jobs:
+  targeted-repro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for exact Cloudflare staging deployment
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python cloud-28/tests/wait-cloudflare-deployment.py
+      - name: Install browser
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Record actual iframe and readiness messages around Arizona Page4
+        run: node cloud-28/tests/browser-arizona-rotation-target.mjs
+      - name: Preserve actionable source and screenshot diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arizona-player-target-readiness
+          retention-days: 14
+          path: |
+            arizona-player-target.json
+            arizona-player-target.png
