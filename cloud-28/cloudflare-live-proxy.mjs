@@ -154,9 +154,37 @@ async function relay(request,ctx) {
   if(edgeCache&&ctx?.waitUntil)ctx.waitUntil(edgeCache.put(cacheKey,answer.clone()));
   return answer;
 }
+async function stagingPlayerState(request){
+  const url=new URL(request.url);
+  if(!['/staging/api/state','/staging/api/heartbeat'].includes(url.pathname))
+    return json({ok:false,error:'Unknown staging player endpoint'},404);
+  if(request.method==='GET'&&url.pathname==='/staging/api/state'){
+    // Production player already keeps authoritative spotlight state in
+    // this TV browser's localStorage; nothing is stored/shared server-side.
+    return json({spots:{},playback:{}});
+  }
+  if(request.method!=='POST')return json({ok:false,error:'Method not allowed'},405);
+  const origin=request.headers.get('Origin');
+  if(origin&&origin!==url.origin)return json({ok:false,error:'Origin mismatch'},403);
+  const ct=(request.headers.get('Content-Type')||'').toLowerCase();
+  if(!ct.startsWith('application/json'))return json({ok:false,error:'JSON required'},415);
+  const bytes=Number(request.headers.get('Content-Length')||0);
+  if(bytes>250000)return json({ok:false,error:'Payload too large'},413);
+  try {
+    // Bounded parse; no token/analytics storage or external writes.
+    const body=await request.text();
+    if(body.length>250000)return json({ok:false,error:'Payload too large'},413);
+    const parsed=JSON.parse(body);
+    if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))
+      return json({ok:false,error:'Invalid player state'},400);
+    return json({ok:true,storage:'browser-local'});
+  }catch{return json({ok:false,error:'Malformed JSON'},400);}
+}
 export default {
   async fetch(request,env,ctx) {
     const path=new URL(request.url).pathname;
+    if(path==='/staging/api/state'||path==='/staging/api/heartbeat')
+      return stagingPlayerState(request);
     if(path==="/proxy")return relay(request,ctx);
     if(path==="/migration-api/nfl/season-stats")return verifiedNflSeasonStats(request,ctx);
     if(path==="/migration-api/health") return json({
