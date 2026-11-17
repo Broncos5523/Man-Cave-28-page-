@@ -15,10 +15,25 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
-      - name: Wait for exact Cloudflare staging deployment
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: python cloud-28/tests/wait-cloudflare-deployment.py
+      - name: Verify the repaired nested lifecycle is actually served by Cloudflare
+        run: |
+          python - <<'PY'
+          import time,urllib.request
+          url='https://man-cave-28-page.broncos5523.workers.dev/hosted/page4_arizona_cfb/'
+          for n in range(18):
+              try:
+                  data=urllib.request.urlopen(urllib.request.Request(
+                      url,headers={'Cache-Control':'no-cache','User-Agent':'ManCaveArizonaReadinessQA/1.0'}),timeout=15).read()
+                  if (b'window.__MC_PRODUCTION_BOARD="page4_arizona_cfb"' in data and
+                      b'<script src="/production/board-runtime.js"></script>' in data):
+                      print('ARIZONA_NESTED_REAL_LIFECYCLE_DEPLOYED',len(data),flush=True)
+                      break
+                  print('NESTED_LIFECYCLE_NOT_YET_PUBLISHED',n+1,flush=True)
+              except Exception as e:
+                  print('NESTED_LIFECYCLE_CHECK_ERROR',n+1,str(e)[:160],flush=True)
+              if n<17:time.sleep(8)
+          else:raise SystemExit('Cloudflare does not serve the nested original MCBoard lifecycle yet')
+          PY
       - name: Install browser
         run: |
           npm install --no-save playwright
