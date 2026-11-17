@@ -29,7 +29,21 @@ await page.addInitScript(()=>{
 try{
   const res=await page.goto(base+"/staging/tv3.html?rotate=off&test=tv3-mock-readonly",{waitUntil:"domcontentloaded",timeout:30000});
   console.log("TV3_NAV",res?.status(),page.url());
-  await page.waitForFunction(()=>!!window.__mockFirebaseThird&&!!window.__MC_PRODUCTION?.current,null,{timeout:22000});
+  try{
+    await page.waitForFunction(()=>!!window.__mockFirebaseThird&&!!window.__MC_PRODUCTION?.current,null,{timeout:11000});
+  }catch(error){
+    console.log("TV3_INIT_DIAGNOSTIC",JSON.stringify(await page.evaluate(()=>({
+      url:location.href,
+      scripts:[...document.querySelectorAll('script[src]')].map(x=>x.src),
+      player:window.__MC_PRODUCTION?.current||null,
+      mock:!!window.__mockFirebaseThird,
+      firebase:!!window.firebase,
+      receiver:window.__MC_TV3_REMOTE__?.getState?.()||null,
+      events:window.__MC_TV3_STAGING_EVENTS__||null
+    }))));
+    console.log("TV3_INIT_ERRORS",JSON.stringify(errors));
+    throw error;
+  }
   console.log("TV3_START",JSON.stringify(await page.evaluate(()=>({
     player:window.__MC_PRODUCTION?.current,receiver:window.__MC_TV3_REMOTE__?.getState(),events:window.__MC_TV3_STAGING_EVENTS__?.slice(-5)
   }))));
