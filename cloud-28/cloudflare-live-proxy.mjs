@@ -1,0 +1,105 @@
+/*
+ * MAN CAVE SPORTS BOOK — CLOUDFLARE READ-ONLY PUBLIC DATA RELAY
+ * Experimental: only /proxy. Approved board files untouched.
+ * Exact public-sports-host allowlist; never proxies arbitrary URLs or secrets.
+ * Static artwork bypasses Worker via assets.run_worker_first.
+ */
+const HOSTS = new Set([
+  "site.api.espn.com", "sports.core.api.espn.com", "site.web.api.espn.com",
+  "site.web.api.espn.com", "a.espncdn.com", "a.espn.com",
+  "api-web.nhle.com", "api.nhle.com", "assets.nhle.com",
+  "statsapi.mlb.com", "lookup-service-prod.mlb.com",
+  "www.mlbstatic.com", "img.mlbstatic.com",
+  "cdn.nba.com", "cdn.wnba.com"
+]);
+const IMAGE_HOSTS = new Set(["a.espncdn.com","assets.nhle.com","www.mlbstatic.com","img.mlbstatic.com","cdn.nba.com","cdn.wnba.com"]);
+const TEXT_MIME = /^(application\/(json|[^;\s]+\+json)|text\/plain)(;|$)/i;
+const IMAGE_MIME = /^image\/(png|jpeg|gif|webp|svg\+xml|avif)(;|$)/i;
+const h = { "X-Content-Type-Options":"nosniff", "Cache-Control":"no-store" };
+const json=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{...h,"Content-Type":"application/json; charset=utf-8"}});
+
+function ttlFor(url) {
+  if(IMAGE_HOSTS.has(url.hostname)) return 86400;
+  if(/\/statistics(?:\/|$)/.test(url.pathname)||/\/athletes(?:\/|$)/.test(url.pathname))return 240;
+  if(/\/scoreboard/.test(url.pathname)||/\/summary/.test(url.pathname))return 35;
+  return 60;
+}
+function validExternal(raw) {
+  if(typeof raw!=="string"||raw.length>1850)throw Error("Invalid public data URL");
+  let u;
+  try {u=new URL(raw);} catch {throw Error("Malformed public data URL");}
+  if(u.protocol!=="https:"||u.port||u.username||u.password||!HOSTS.has(u.hostname.toLowerCase()))
+    throw Error("Upstream host not approved");
+  if(u.hash) u.hash="";
+  return u;
+}
+async function relay(request,ctx) {
+  if(request.method!=="GET") return json({ok:false,error:"GET only"},405);
+  const src=new URL(request.url).searchParams.get("url");
+  let target;
+  try {target=validExternal(src);}catch(e){return json({ok:false,error:e.message},403);}
+  const ttl=ttlFor(target),cacheKey=new Request("https://man-cave-public-cache.invalid/"+encodeURIComponent(target.toString()));
+  const edgeCache=typeof caches!=="undefined"?caches.default:null;
+  if(edgeCache) {
+    const cached=await edgeCache.match(cacheKey);
+    if(cached){const headers=new Headers(cached.headers);headers.set("X-Man-Cave-Data-Source","edge-cache");
+      return new Response(cached.body,{status:cached.status,headers});}
+  }
+  let upstream;
+  try {
+    // Public feeds only. Never send incoming Authorization, Cookie or Xfinity data.
+    upstream=await fetch(target.toString(),{
+      method:"GET",redirect:"manual",
+      headers:{"Accept":IMAGE_HOSTS.has(target.hostname)?"image/avif,image/webp,image/*;q=0.8,*/*;q=0.5":"application/json, text/plain;q=0.9"},
+      signal:AbortSignal.timeout(13000)
+    });
+  } catch(e) {
+    return json({ok:false,error:"Sports data source temporarily unavailable"},503);
+  }
+  if(!upstream.ok) return json({ok:false,error:"Sports data source HTTP "+upstream.status},502);
+  if(upstream.status>=300 && upstream.status<400)return json({ok:false,error:"Upstream redirect not approved"},502);
+  const type=(upstream.headers.get("content-type")||"").split(";")[0].trim().toLowerCase();
+  if(!TEXT_MIME.test(type)&&!IMAGE_MIME.test(type))return json({ok:false,error:"Unsupported upstream content type"},502);
+  if(IMAGE_MIME.test(type)&&!IMAGE_HOSTS.has(target.hostname))
+    return json({ok:false,error:"Image endpoint not approved"},403);
+  const cap=IMAGE_MIME.test(type)?8*1024*1024:5*1024*1024;
+  if(Number(upstream.headers.get("content-length")||0)>cap)return json({ok:false,error:"Upstream response exceeds relay limit"},502);
+  // Bound actual stream bytes even if upstream omits Content-Length.
+  const parts=[],reader=upstream.body?.getReader();let size=0;
+  if(!reader)return json({ok:false,error:"Sports data source returned empty stream"},502);
+  try {
+    for (;;) {
+      const {done,value}=await reader.read();if(done)break;
+      size+=value.byteLength;
+      if(size>cap){await reader.cancel();return json({ok:false,error:"Upstream response exceeds relay limit"},502);}
+      parts.push(value);
+    }
+  } catch {return json({ok:false,error:"Sports data source stream interrupted"},503);}
+  const body=new Uint8Array(size);let offset=0;
+  for(const bytes of parts){body.set(bytes,offset);offset+=bytes.length;}
+  const headers=new Headers({
+    "Content-Type":type,
+    "Cache-Control":"public, max-age="+ttl,
+    "X-Content-Type-Options":"nosniff",
+    "X-Man-Cave-Data-Source":"public-upstream",
+    "X-Man-Cave-Source-Host":target.hostname
+  });
+  const answer=new Response(body,{status:200,headers});
+  if(edgeCache&&ctx?.waitUntil)ctx.waitUntil(edgeCache.put(cacheKey,answer.clone()));
+  return answer;
+}
+export default {
+  async fetch(request,env,ctx) {
+    const path=new URL(request.url).pathname;
+    if(path==="/proxy")return relay(request,ctx);
+    if(path==="/migration-api/health") return json({
+      ok:true,mode:"Cloudflare v8l API migration",
+      publicEspnRelay:"enabled",boardApi:"NOT PORTED",firebaseTV:"NOT SWITCHED",
+      liveStatistics:"requires per-board verification"
+    });
+    // All other paths are static and should bypass the Worker in production.
+    if(env?.ASSETS?.fetch)return env.ASSETS.fetch(request);
+    return json({ok:false,error:"Static asset binding unavailable"},503);
+  }
+};
+export {validExternal,ttlFor};
