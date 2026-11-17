@@ -43,6 +43,7 @@ jobs:
               if not p.exists():print('DIAGNOSTIC_NOT_FOUND',rel);continue
               src=p.read_text()
               print('DIAGNOSTIC_SOURCE',rel,'length',len(src))
+              if rel.endswith('index.html'):print('ORIGINAL_NESTED_INDEX_HTML',src[:3500])
               if rel.endswith('board-runtime.js'):
                   for i,line in enumerate(src.splitlines()):print('ORIGINAL_RUNTIME',i+1,line[:900])
               for tok in ['mc-board-ready','mc-board-load-failed','mcproduction','postMessage','setTimeout','addEventListener']:
