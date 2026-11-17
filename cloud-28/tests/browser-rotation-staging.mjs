@@ -62,7 +62,7 @@ try{
   if(!reqs.some(x=>x.code===200&&x.path==="/staging/boards.json"))throw Error("Board manifest not loaded");
   if(!reqs.some(x=>x.code===200&&x.path.startsWith("/staging/api/state")))throw Error("Local playback API unavailable");
   for(const ticker of ["ticker_nfl_final.mjs","ticker_pro_final.mjs","ticker_college_final.mjs"]){
-    const bad=reqs.some(x=>x.path==="/"+ticker&&x.code!==200);
+    const bad=reqs.some(x=>x.path==="/"+ticker&&![200,304].includes(x.code));
     if(bad)throw Error("Original ticker missing: "+ticker);
   }
   console.log("PASS_CLOUDFLARE_ORIGINAL_ROTATION_30S");
