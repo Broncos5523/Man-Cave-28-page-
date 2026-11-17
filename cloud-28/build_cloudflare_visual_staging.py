@@ -97,13 +97,17 @@ def make_index(boards):
             'small{display:block;color:#a8b9ce;font-size:11px;font-weight:400;padding-left:32px}'
             '</style></head><body><main><h1>MAN CAVE SPORTS BOOK</h1>'
             '<p>28 original approved boards — Cloudflare visual staging</p>'
-            '<div class="note"><strong>VISUAL PREVIEW ONLY</strong>'
-            '<p>Exact approved board layouts and artwork served with optimized image caching. '
-            'Live statistics, animations, Firebase commands and Onn playback are NOT yet verified. '
-            'Do not change your TV receiver address.</p></div>'
+            '<div class="note"><strong>28 ORIGINAL BOARDS — CLOUDFLARE STAGING</strong>'
+            '<p>All 28 approved layouts and live-data renderers passed automated browser verification '
+            'on November 17, 2026. Real Onn TV playback and production controller routing '
+            'have NOT been physically verified. '
+            'Keep the existing TV receiver address until physical testing and approval.</p>'
+            '<p><a href="https://github.com/Broncos5523/Man-Cave-28-page-/blob/cloudflare-batch-results/latest.md" '
+            'target="_blank" rel="noopener">View latest independent verification evidence</a></p></div>'
             '<p><a style="background:#19314b;border-color:#4df0bd;color:#fff" href="/staging/player.html?rotate=off">'
             '▶ Open original 28-board rotation preview (30 seconds per page)</a></p>'
             '<p><a href="/staging/tv3.html?rotate=off">Test 32-inch Onn Firebase receiver (read-only assignments)</a></p>'
+            '<p><a href="/staging/device-check.html">Check this TV/browser and preview rotation before cutover</a></p>'
             '<section class="grid">'+''.join(links)+'</section></main></body></html>').encode()
 
 def main():
@@ -241,6 +245,9 @@ def main():
         save_binary(STAGE/"player.js",player_js.encode())
         save_binary(STAGE/"boards.json",(approved.APP/"production"/"boards.json").read_bytes())
         save_binary(STAGE/"index.html",make_index(boards))
+        # A separate diagnostic page checks device/browser readiness in place.
+        # It does not access Firebase, send commands, or alter any board.
+        save_binary(STAGE/"device-check.html",(HERE/"on-device-check.html").read_bytes())
         # Preserve versioned Gold Master scripts and cloud adapter runtime
         # patches exactly where the original HTTP server exposes them.
         for route in (
@@ -260,13 +267,13 @@ def main():
         if len(board_out)!=28:
             raise RuntimeError("Not all 28 approved pages were exported")
         summary={
-           "mode":"VISUAL STAGING ONLY — NOT LIVE DATA CERTIFIED",
+           "mode":"STAGING; AUTOMATED 28/28 VERIFIED 2026-11-17; PHYSICAL ONN UNTESTED",
            "source":"locked original v8l release",
            "boardCount":len(board_out),
            "optimizedBoardBytes":sum(p.stat().st_size for p in board_out),
            "staticSourceFilesCopied":static_files,
            "ids":ids,
-           "note":"No controller/TV receiver changes. Dynamic JSON endpoints not yet ported."
+           "note":"All 28 board JSON adapters passed 2026-11-17 automated staging/browser verification. Physical Onn and production cutover are not approved.",
         }
         save_binary(STAGE/"status.json",json.dumps(summary,indent=2).encode())
         print("CLOUDFLARE_VISUAL_STAGING_READY",len(board_out),
