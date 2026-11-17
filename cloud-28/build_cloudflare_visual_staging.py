@@ -145,13 +145,38 @@ def main():
                 if not head:
                     raise RuntimeError('Arizona nested app lacks expected head anchor')
                 bridge=(b'<script>window.__MC_PRODUCTION_BOARD="page4_arizona_cfb";</script>'
-                        b'<script src="/production/board-runtime.js"></script>')
+                        b'<script src="/staging/board-runtime-ancestor.js"></script>')
                 data=data[:head.end()]+bridge+data[head.end():]
             if rel.endswith('index-BpJce90E.js'):
                 old=b'"/hosted/page4_arizona_cfb/index.html"'
                 if data.count(old)!=1:raise RuntimeError('Arizona nested app route changed')
                 data=data.replace(old,b'"/hosted/page4_arizona_cfb/"',1)
             save_binary(OUT/rel,data)
+        # Export a staging-only copy of the ORIGINAL readiness bridge. The
+        # original bridge hardcodes host=window.top, which becomes GitHub
+        # Pages (cross-origin) when the approved Cloudflare player is placed
+        # inside the left/right Fire TV receiver iframe. In that layout
+        # page2_nfl never marks ready and 30-second rotation stalls.
+        # Find the nearest same-origin parent with the ORIGINAL spotlight
+        # state/store instead. This does not forge readiness or alter the
+        # approved 30-second timer, renderer, assets or original runtime.
+        original_bridge=request(base,"/production/board-runtime.js")
+        source=b'const host=window.top;'
+        if original_bridge.count(source)!=1:
+            raise RuntimeError("Original board runtime host anchor changed; review before staging")
+        resolver=(b'const host=(()=>{'
+                  b'let cursor=window;'
+                  b'for(let depth=0;depth<8;depth++){'
+                  b'let parent;try{parent=cursor.parent;}catch(e){break;}'
+                  b'if(!parent||parent===cursor)break;'
+                  b'try{'
+                  b'if(parent.MCSpotlightState&&parent.MCStore)return parent;'
+                  b'}catch(e){break;}'
+                  b'cursor=parent;'
+                  b'}return window;'
+                  b'})();')
+        safe_bridge=original_bridge.replace(source,resolver,1)
+        save_binary(STAGE/"board-runtime-ancestor.js",safe_bridge)
         for bid in ids:
             response=request(base,"/production/board/"+bid)
             if bid=='page4_fever':
@@ -167,6 +192,15 @@ def main():
                 if response.count(override)!=1:
                     raise RuntimeError("CBB transport override anchor changed")
                 response=response.replace(override,b"",1)
+            # Only STAGING board HTML refers to the nesting-safe copy of
+            # the ORIGINAL runtime. The Gold Master and /production asset
+            # remain byte-identical; the resolver only changes host selection.
+            runtime_ref=b'/production/board-runtime.js'
+            runtime_replacement=b'/staging/board-runtime-ancestor.js'
+            if bid=='page2_nfl' and response.count(runtime_ref)!=1:
+                raise RuntimeError("Page2 NFL original runtime link missing; do not fake readiness")
+            if runtime_ref in response:
+                response=response.replace(runtime_ref,runtime_replacement)
             # Staging-only network shim runs BEFORE original inline scripts.
             # Original Gold Master stays untouched; fetch operations are
             # redirected solely to our strict same-origin Cloudflare relay.
