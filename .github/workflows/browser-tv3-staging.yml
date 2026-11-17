@@ -14,6 +14,27 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Wait for Cloudflare to publish TV3 without the Rotate tab
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          const uri='https://man-cave-28-page.broncos5523.workers.dev/staging/tv3.html?rotate=ccw';
+          let ok=false;
+          for(let i=0;i<24;i++){
+            try{
+              const response=await fetch(uri,{headers:{'Cache-Control':'no-cache'}});
+              const html=await response.text();
+              if(response.ok&&html.includes('/staging/tv3-remote.js')&&
+                 !html.includes('mc-tv3-rotate-button')&&!html.includes('mc-tv3-rotate-menu')){
+                console.log('PASS_PUBLISHED_RECEIVER_WITHOUT_ROTATE_TAB');
+                ok=true;break;
+              }
+              console.log('TV3_DEPLOY_PENDING',i+1,response.status);
+            }catch(e){console.log('TV3_DEPLOY_RETRY',i+1,String(e).slice(0,150));}
+            await new Promise(resolve=>setTimeout(resolve,10000));
+          }
+          if(!ok)throw Error('Updated TV3 receiver has not reached Cloudflare');
+          JS
       - name: Install Chromium browser
         run: |
           npm install --no-save playwright
