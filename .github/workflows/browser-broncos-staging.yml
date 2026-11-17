@@ -1,0 +1,22 @@
+name: Browser-check Broncos Cloudflare live-data staging (read-only)
+
+on:
+  push:
+    paths:
+      - cloud-28/tests/browser-broncos-staging.mjs
+      - .github/workflows/browser-broncos-staging.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install browser runtime for real JS execution
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Check browser JavaScript, live stats and ticker (no writes)
+        run: node cloud-28/tests/browser-broncos-staging.mjs
