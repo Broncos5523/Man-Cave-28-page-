@@ -71,6 +71,24 @@ try{
   console.log("TV3_ERRORS",JSON.stringify(errors.slice(0,10)));
   console.log("PASS_TV3_EXISTING_FIREBASE_ASSIGNMENT_PROTOCOL_CLOUDFLARE_STAGING_MOCKED_READ_ONLY");
 
+  // Existing TV3 receiver must now accept both wing board modes as well,
+  // without interfering with fixed CCW orientation or any board artwork.
+  for(const [type,url] of [
+    ['upcoming','https://caveup.pages.dev/'],
+    ['live','https://testcave.pages.dev/'],
+    ['wrestling','https://broncos5523.github.io/Inside-the-squared-circle/staging/?view=tv&mode=active&rotate=none']
+  ]){
+    await page.evaluate(type=>window.__mockFirebaseThird({type}),type);
+    await page.waitForFunction(type=>window.__MC_TV3_REMOTE__?.getState()?.held===type,
+      type,{timeout:15000});
+    const target=await page.locator('#mc-tv3-single-board').getAttribute('src');
+    if(target!==url)throw Error('Cloudflare Onn did not load '+type+' external board: '+target);
+    console.log('PASS_TV3_LIBRARY_'+type.toUpperCase(),target);
+  }
+  await page.evaluate(()=>window.__mockFirebaseThird({type:'rotation'}));
+  await page.waitForFunction(()=>!document.getElementById('mc-tv3-single-board'),
+    null,{timeout:15000});
+
   // Onn HDMI output is landscape even when the physical TV is portrait.
   // Verify the approved rotation/fit matrix is mirrored on the selected board.
   await page.setViewportSize({width:1920,height:1080});
