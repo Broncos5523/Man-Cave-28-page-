@@ -1,3 +1,4 @@
+import {buildNflPage2} from './nfl-page2-contract.mjs';
 import {buildNflPage1} from './nfl-page1-contract.mjs';
 /*
  * MAN CAVE SPORTS BOOK — CLOUDFLARE READ-ONLY PUBLIC DATA RELAY
@@ -181,6 +182,35 @@ async function nflPage1Api(request,ctx){
     return json({ok:false,error:"NFL season feed failed strict contract verification; no data substituted"},503);
   }
 }
+async function nflPage2Api(request,ctx){
+  if(request.method!=="GET")return json({ok:false,error:"GET only"},405);
+  const existing=await nflPage1Api(request,ctx);
+  if(!existing.ok)return existing;
+  let base;
+  try{base=await existing.json()}catch{return json({ok:false,error:"Current NFL base feed unavailable"},503)}
+  const year=Number(base?.context?.year);
+  if(!Number.isInteger(year)||year<2024||year>2035)
+    return json({ok:false,error:"Unsupported NFL season"},503);
+  const host="https://site.api.espn.com";
+  const leaderUrl=host+"/apis/site/v3/sports/football/nfl/leaders?season="+year+"&seasontype=2";
+  const teamUrl=host+"/apis/common/v3/sports/football/nfl/statistics/byteam?season="+year+"&seasontype=2&limit=100";
+  const fromUrl=url=>relay(new Request("https://man-cave-relay.invalid/proxy?url="+encodeURIComponent(url)),ctx);
+  const [leadersResponse,teamResponse]=await Promise.all([fromUrl(leaderUrl),fromUrl(teamUrl)]);
+  if(!leadersResponse.ok||!teamResponse.ok)
+    return json({ok:false,error:"Verified NFL current-season player/team leaders unavailable"},503);
+  try{
+    const result=buildNflPage2(base,await leadersResponse.json(),await teamResponse.json());
+    return new Response(JSON.stringify(result),{status:200,headers:{
+      "Content-Type":"application/json; charset=utf-8",
+      "Cache-Control":"public, max-age=60",
+      "X-Content-Type-Options":"nosniff",
+      "X-Man-Cave-Data-Source":"verified-espn-nfl-league-leaders",
+      "X-Man-Cave-Contract":"original-page2-nfl-staging"
+    }});
+  }catch{
+    return json({ok:false,error:"NFL Page 2 season/metrics failed verification; not substituting stale totals"},503);
+  }
+}
 async function stagingPlayerState(request){
   const url=new URL(request.url);
   if(!['/staging/api/state','/staging/api/heartbeat'].includes(url.pathname))
@@ -211,13 +241,14 @@ export default {
   async fetch(request,env,ctx) {
     const path=new URL(request.url).pathname;
     if(path==='/api/board/page1_nfl')return nflPage1Api(request,ctx);
+    if(path==='/api/board/page2_nfl')return nflPage2Api(request,ctx);
     if(path==='/staging/api/state'||path==='/staging/api/heartbeat')
       return stagingPlayerState(request);
     if(path==="/proxy")return relay(request,ctx);
     if(path==="/migration-api/nfl/season-stats")return verifiedNflSeasonStats(request,ctx);
     if(path==="/migration-api/health") return json({
       ok:true,mode:"Cloudflare v8l API migration",
-      publicEspnRelay:"enabled",boardApi:"NOT PORTED",firebaseTV:"NOT SWITCHED",
+      publicEspnRelay:"enabled",boardApi:"PARTIAL NFL PAGES 1 AND 2",firebaseTV:"NOT SWITCHED",
       liveStatistics:"requires per-board verification"
     });
     // All other paths are static and should bypass the Worker in production.
