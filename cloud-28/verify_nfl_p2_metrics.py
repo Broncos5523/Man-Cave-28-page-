@@ -6,6 +6,7 @@ def get(url):
   with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=18) as r:return json.load(r)
 d=get(base+"/apis/common/v3/sports/football/nfl/statistics/byteam?season=2026&seasontype=2&limit=100")
 maps={c["name"]:c["names"] for c in d["categories"]}
+print("TEAM_SPLIT_IDENTIFIERS",[(c.get("name"),c.get("splitId")) for c in d["teams"][0]["categories"]],flush=True)
 settings=[
   ("GROSS PASSING OFFENSE","passing",0,"passingYardsPerGame"),
   ("NET PASSING OFFENSE","passing",0,"netPassingYardsPerGame"),
