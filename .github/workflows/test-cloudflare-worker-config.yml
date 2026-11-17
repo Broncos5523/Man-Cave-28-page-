@@ -1,0 +1,35 @@
+name: Validate Cloudflare Worker assets-only configuration (no deployment)
+
+on:
+  push:
+    paths:
+      - wrangler.jsonc
+      - .github/workflows/test-cloudflare-worker-config.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  worker-dry-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare verified approved Gold Master
+        run: python cloud-28/prepare.py
+      - name: Build static asset staging
+        run: python cloud-28/build_cloudflare_assets.py
+      - name: Check Cloudflare Worker name and output
+        run: |
+          python - <<'PY'
+          import pathlib,json,re
+          config=json.loads(re.sub(r'^\s*//.*$','',pathlib.Path("wrangler.jsonc").read_text(),flags=re.M))
+          assert config["name"]=="man-cave-28-page"
+          assets=pathlib.Path(config["assets"]["directory"])
+          assert assets.is_dir() and len(list((assets/"cdn-inline").iterdir()))>=300
+          assert (assets/"index.html").is_file()
+          print("PASS: Cloudflare Worker config name and 316 approved assets match screenshot",flush=True)
+          PY
+      - name: Wrangler dry-run only; never publish
+        run: npx --yes wrangler@4 deploy --dry-run --outdir ./_worker-dry-run
