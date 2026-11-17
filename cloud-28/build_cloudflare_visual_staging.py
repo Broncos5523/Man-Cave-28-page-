@@ -111,13 +111,22 @@ def main():
     try:
         for bid in ids:
             response=request(base,"/production/board/"+bid)
-            # Confirm that all inline image URLs were extracted, and the stage
-            # has NOT silently changed page markup other than exact-byte URLs.
+            # Staging-only network shim runs BEFORE original inline scripts.
+            # Original Gold Master stays untouched; fetch operations are
+            # redirected solely to our strict same-origin Cloudflare relay.
             if b"data:image/" in response.lower():
                 raise RuntimeError("Unoptimized embedded image in "+bid)
             if b"<html" not in response[:2500].lower():
                 raise RuntimeError("Invalid approved board HTML: "+bid)
+            match=re.search(rb"<head\\b[^>]*>",response,flags=re.I)
+            if not match:
+                raise RuntimeError("Approved board head insertion point missing: "+bid)
+            shim=b'<script src="/staging/espn-fetch-shim.js"></script>'
+            if shim in response:
+                raise RuntimeError("Duplicate Cloudflare preview shim: "+bid)
+            response=response[:match.end()]+shim+response[match.end():]
             save_binary(STAGE/"boards"/(bid+".html"),response)
+        save_binary(STAGE/"espn-fetch-shim.js",(HERE/"cloudflare-public-feed-shim.js").read_bytes())
         save_binary(STAGE/"index.html",make_index(boards))
         # Preserve versioned Gold Master scripts and cloud adapter runtime
         # patches exactly where the original HTTP server exposes them.
