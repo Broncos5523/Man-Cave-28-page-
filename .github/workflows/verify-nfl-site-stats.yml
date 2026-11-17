@@ -1,0 +1,63 @@
+name: Verify current NFL player-stat alternatives to ESPN Core (read-only)
+
+on:
+  push:
+    paths:
+      - .github/workflows/verify-nfl-site-stats.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect verified public current-season ESPN alternatives
+        shell: bash
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.error,urllib.parse,json
+          root="https://man-cave-28-page.broncos5523.workers.dev"
+          def fetch(url):
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(url,headers={"Accept":"application/json","User-Agent":"ManCavePublicSportDataStudy/1.0"}),timeout=12) as r:
+                      body=r.read(4000000);return r.status,r.headers.get("Content-Type",""),json.loads(body)
+              except urllib.error.HTTPError as e:
+                  try: body=json.loads(e.read(800))
+                  except:body={"error":str(e)}
+                  return e.code,"",body
+              except Exception as e:return 0,"",{"error":str(e)[:150]}
+          roster="https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/7/roster"
+          status,ct,data=fetch(root+"/proxy?url="+urllib.parse.quote(roster,safe=""))
+          print("ROSTER",status,"season",data.get("season"),"groups",len(data.get("athletes",[])),flush=True)
+          assert status==200
+          allplayers=[a for group in data["athletes"] for a in group.get("items",[])]
+          print("ROSTER_PLAYER_COUNT",len(allplayers),flush=True)
+          person=next((p for p in allplayers if "Bo Nix" in (p.get("displayName","")+" "+p.get("fullName",""))),None)
+          assert person,"Bo Nix not in current Denver roster"
+          ident=str(person["id"])
+          print("SOURCE_PLAYER",person.get("displayName"),ident,"POSITION",person.get("position"),flush=True)
+          urls=[
+            ("site-v3-stats",f"https://site.api.espn.com/apis/common/v3/sports/football/nfl/athletes/{ident}/stats?season=2026"),
+            ("web-v3-stats",f"https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/{ident}/stats?season=2026"),
+            ("web-v3-stats-seasonType",f"https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/{ident}/stats?season=2026&seasontype=2"),
+            ("web-v3-splits",f"https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/{ident}/splits?season=2026"),
+            ("site-v3-splits",f"https://site.api.espn.com/apis/common/v3/sports/football/nfl/athletes/{ident}/splits?season=2026"),
+            ("site-team-stats","https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/7/statistics?season=2026")
+          ]
+          for name,u in urls:
+              for mode,endpoint in (("direct",u),("cloudflare",root+"/proxy?url="+urllib.parse.quote(u,safe=""))):
+                  code,ctype,d=fetch(endpoint)
+                  keys=list(d.keys())[:18] if isinstance(d,dict) else []
+                  season=d.get("season") if isinstance(d,dict) else None
+                  if isinstance(season,dict):season={k:season.get(k) for k in ["year","type","displayName"]}
+                  sample={}
+                  if isinstance(d,dict):
+                      for key in ("categories","splits","statistics","stats","seasons","labels","totals"):
+                          if key in d:
+                              v=d[key]
+                              sample[key]={"type":type(v).__name__,"len":len(v) if hasattr(v,"__len__") else 0,
+                                           "firstkeys":list(v[0].keys())[:8] if isinstance(v,list) and v and isinstance(v[0],dict) else list(v.keys())[:8] if isinstance(v,dict) else []}
+                  print("STAT_PROBE",name,mode,"HTTP",code,"keys",keys,"season",season,"shape",json.dumps(sample)[:450],flush=True)
+          PY
