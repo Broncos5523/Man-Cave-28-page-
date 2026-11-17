@@ -53,9 +53,12 @@ def copy_approved_static_files():
                 data=optimize_html(data)
             save_binary(OUT/rel,data)
             count+=1
-    for file in sorted(GOLD.glob("runtime*")):
-        if file.is_file() and file.suffix.lower() in (".js",".css",".json"):
-            save_binary(OUT/file.name,file.read_bytes());count+=1
+    # Original live tickers are dynamically imported by approved runtime JS.
+    # They must retain their original root URLs and byte-for-byte contents.
+    for pattern in ("runtime*","ticker_*_final.mjs"):
+        for file in sorted(GOLD.glob(pattern)):
+            if file.is_file() and file.suffix.lower() in (".js",".mjs",".css",".json"):
+                save_binary(OUT/file.name,file.read_bytes());count+=1
     return count
 
 def board_manifest():
