@@ -146,6 +146,12 @@ jobs:
       - name: Publish latest read-only report to separate evidence branch
         shell: bash
         run: |
+          # A cancelled/superseded job must never overwrite a newer result.
+          main_sha=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [[ "$main_sha" != "$GITHUB_SHA" ]]; then
+            echo "Superseded commit: leaving latest report untouched."
+            exit 0
+          fi
           data_dir="$RUNNER_TEMP/mancave-batch-evidence"
           if git ls-remote --exit-code origin refs/heads/cloudflare-batch-results >/dev/null; then
             git fetch origin cloudflare-batch-results
