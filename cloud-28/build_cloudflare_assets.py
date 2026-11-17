@@ -61,5 +61,9 @@ def main():
           round(manifest["totalBytes"]/1048576,2),"MiB")
     print("OUTPUT_DIRECTORY",OUT.as_posix())
     print("NO_PRODUCTION_URL_OR_CONTROLLER_CHANGES")
+    # Isolated /staging/ previews: original HTML and optimized images only.
+    # Do not promote to TV production until live API and Firebase tests pass.
+    from build_cloudflare_visual_staging import main as build_visual_staging
+    build_visual_staging()
 if __name__=="__main__":
     main()
