@@ -1,0 +1,20 @@
+name: Compare 2026 Broncos live stat formats (no deployment)
+
+on:
+  push:
+    paths:
+      - cloud-28/inspect_nfl_compatibility.py
+      - .github/workflows/inspect-nfl-compatibility.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - name: Load SHA-verified original board package
+        run: python cloud-28/prepare.py
+      - name: Compare approved stat parser and ESPN regular season sources
+        run: python cloud-28/inspect_nfl_compatibility.py
