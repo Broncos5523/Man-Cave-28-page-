@@ -1,0 +1,76 @@
+name: Test low-bandwidth 28-board delivery (no deployment)
+
+on:
+  push:
+    paths:
+      - .github/workflows/smoke-low-bandwidth-v8l.yml
+      - cloud-28/low_bandwidth_server.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Retrieve untouched and checksum-verified v8l archive
+        run: python cloud-28/prepare.py
+      - name: Validate exact image bytes, optimization ratio, and cache headers
+        shell: bash
+        run: |
+          python - <<'PY'
+          import pathlib,sys,hashlib,re,base64,threading,time
+          from urllib.request import urlopen
+          sys.path.insert(0,"cloud-28")
+          import low_bandwidth_server as low
+          low.prime_approved_assets()
+          p=low.ORIGIN_ROOT/"boards/page4_celtics.html"
+          assert p.is_file(),"Approved Celtics board missing"
+          original=p.read_bytes()
+          optimized=low.optimize_html(original)
+          assert len(optimized)<len(original)*0.1,"Celtics board still embedded huge data URI payloads"
+          source_images=list(low.INLINE_RE.finditer(original))
+          assert len(source_images)>=10,"Original data URI images missing"
+          for m in source_images:
+              payload=base64.b64decode(m.group(2),validate=True)
+              ext=low.MIME_EXT[m.group(1).decode().lower()]
+              digest=hashlib.sha256(payload).hexdigest()
+              saved=low.ASSET_ROOT/(digest+"."+ext)
+              assert saved.is_file() and saved.read_bytes()==payload,"Original image bytes modified"
+              assert ("/cdn-inline/"+digest+"."+ext).encode() in optimized,"Optimized URL not present"
+          print("BYTE_EXACT_IMAGES",len(source_images),flush=True)
+          print("CELTICS_ORIGINAL_BYTES",len(original),flush=True)
+          print("CELTICS_OPTIMIZED_BYTES",len(optimized),flush=True)
+          print("CELTICS_HTML_REDUCTION_PERCENT",round(100*(1-len(optimized)/len(original)),2),flush=True)
+          print("CACHE_UNIQUE_IMAGES",len(list(low.ASSET_ROOT.iterdir())),flush=True)
+          print("EXPERIMENTAL_CACHED_IMAGE_BYTES",sum(p.stat().st_size for p in low.ASSET_ROOT.iterdir()),flush=True)
+          server=low.ThreadingHTTPServer(("127.0.0.1",0),low.Handler)
+          server.daemon_threads=True
+          thread=threading.Thread(target=server.serve_forever,daemon=True)
+          thread.start()
+          base="http://127.0.0.1:"+str(server.server_port)
+          def request(path):
+              with urlopen(base+path,timeout=20) as response:
+                  return response.status,response.headers,response.read()
+          try:
+              status,headers,body=request("/production/board/page1_nfl")
+              print("BOARD_HTTP",status,"BYTES",len(body),"CACHE",headers.get_all("Cache-Control"),flush=True)
+              assert status==200 and b"cdn-inline/" in body
+              assert len(headers.get_all("Cache-Control") or [])==1,"Conflicting cache headers"
+              assert headers.get("Cache-Control")=="public, max-age=1800","Unexpected board policy"
+              match=re.search(rb"/cdn-inline/[a-f0-9]{64}\.(png|jpg|webp|gif|svg|avif|bmp)",body)
+              assert match, "No extracted image URL in board"
+              status,headers,asset=request(match.group(0).decode())
+              print("IMAGE_HTTP",status,"BYTES",len(asset),"CACHE",headers.get_all("Cache-Control"),flush=True)
+              assert status==200
+              assert headers.get_all("Cache-Control")==["public, max-age=31536000, immutable"]
+              filename=low.ASSET_ROOT/match.group(0).decode().rsplit("/",1)[-1]
+              assert filename.read_bytes()==asset
+              print("RESULT PASS: original visuals preserved, major HTML reduction, correct immutable image caching",flush=True)
+          finally:
+              server.shutdown()
+              server.server_close()
+          PY
