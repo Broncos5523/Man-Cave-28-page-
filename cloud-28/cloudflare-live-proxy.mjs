@@ -1,3 +1,4 @@
+import {buildNbaPage1} from './nba-page1-contract.mjs';
 import {buildNflPage2} from './nfl-page2-contract.mjs';
 import {buildNflPage1} from './nfl-page1-contract.mjs';
 /*
@@ -182,6 +183,33 @@ async function nflPage1Api(request,ctx){
     return json({ok:false,error:"NFL season feed failed strict contract verification; no data substituted"},503);
   }
 }
+async function nbaPage1Api(request,ctx){
+  if(request.method!=="GET")return json({ok:false,error:"GET only"},405);
+  const scoreboardUrl="https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?limit=100";
+  const scoreboardResponse=await relay(new Request("https://man-cave-relay.invalid/proxy?url="+encodeURIComponent(scoreboardUrl)),ctx);
+  if(!scoreboardResponse.ok)return json({ok:false,error:"Current NBA scoreboard unavailable"},503);
+  let scoreboard;
+  try{scoreboard=await scoreboardResponse.json()}catch{return json({ok:false,error:"Invalid NBA scoreboard JSON"},502)}
+  const season=scoreboard?.season||scoreboard?.leagues?.[0]?.season||{};
+  const year=Number(season?.year);
+  if(!Number.isInteger(year)||year<2025||year>2036)
+    return json({ok:false,error:"ESPN NBA year unverified"},503);
+  const standingsUrl="https://site.api.espn.com/apis/v2/sports/basketball/nba/standings?season="+year+"&seasontype=2";
+  const standingsResponse=await relay(new Request("https://man-cave-relay.invalid/proxy?url="+encodeURIComponent(standingsUrl)),ctx);
+  if(!standingsResponse.ok)return json({ok:false,error:"NBA regular-season standings unavailable"},503);
+  try{
+    const data=buildNbaPage1(scoreboard,await standingsResponse.json());
+    return new Response(JSON.stringify(data),{status:200,headers:{
+      "Content-Type":"application/json; charset=utf-8",
+      "Cache-Control":"public, max-age=35",
+      "X-Content-Type-Options":"nosniff",
+      "X-Man-Cave-Data-Source":"verified-espn-nba-current-season",
+      "X-Man-Cave-Contract":"original-page1-nba-staging"
+    }});
+  }catch{
+    return json({ok:false,error:"NBA season/standings failed strict original contract verification"},503);
+  }
+}
 async function nflPage2Api(request,ctx){
   if(request.method!=="GET")return json({ok:false,error:"GET only"},405);
   const existing=await nflPage1Api(request,ctx);
@@ -242,13 +270,14 @@ export default {
     const path=new URL(request.url).pathname;
     if(path==='/api/board/page1_nfl')return nflPage1Api(request,ctx);
     if(path==='/api/board/page2_nfl')return nflPage2Api(request,ctx);
+    if(path==='/api/board/page1_nba')return nbaPage1Api(request,ctx);
     if(path==='/staging/api/state'||path==='/staging/api/heartbeat')
       return stagingPlayerState(request);
     if(path==="/proxy")return relay(request,ctx);
     if(path==="/migration-api/nfl/season-stats")return verifiedNflSeasonStats(request,ctx);
     if(path==="/migration-api/health") return json({
       ok:true,mode:"Cloudflare v8l API migration",
-      publicEspnRelay:"enabled",boardApi:"PARTIAL NFL PAGES 1 AND 2",firebaseTV:"NOT SWITCHED",
+      publicEspnRelay:"enabled",boardApi:"PARTIAL NFL PAGES 1 AND 2; NBA PAGE 1",firebaseTV:"NOT SWITCHED",
       liveStatistics:"requires per-board verification"
     });
     // All other paths are static and should bypass the Worker in production.
