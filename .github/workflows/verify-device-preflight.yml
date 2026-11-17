@@ -1,0 +1,38 @@
+name: Verify Cloudflare Onn and iPhone preflight (read-only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - cloud-28/on-device-check.html
+      - cloud-28/build_cloudflare_visual_staging.py
+      - cloud-28/tests/browser-device-preflight.mjs
+      - .github/workflows/verify-device-preflight.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  checks: read
+jobs:
+  device:
+    runs-on: ubuntu-latest
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for this exact Cloudflare deployment
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python cloud-28/tests/wait-cloudflare-deployment.py
+      - name: Install real browser
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Check iPhone and Onn preflight, staging index, 28-board source and no Firebase writes
+        run: node cloud-28/tests/browser-device-preflight.mjs
+      - name: Preserve screenshots and read-only results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: onn-preflight-browser-evidence
+          retention-days: 14
+          path: |
+            onn-preflight-matrix.json
+            *-preflight.png
