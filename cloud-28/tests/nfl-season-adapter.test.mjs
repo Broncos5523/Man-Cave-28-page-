@@ -48,7 +48,7 @@ test("actual Worker route returns season-shaped ESPN Site stats (no incoming pri
   try{
     const address="https://man-cave-28-page.broncos5523.workers.dev/migration-api/nfl/season-stats?season=2026&athlete=4426338&team=7";
     const r=await app.fetch(new Request(address,{headers:{Cookie:"privatecookie",Authorization:"Bearer private"}}),{},null);
-    assert.equal(r.status,200,await r.text().catch(()=>null));
+    assert.equal(r.status,200);
     const result=await r.json();
     assert.equal(result.splits.categories[0].stats[0].value,1846);
     assert.match(seen.url,/^https:\/\/site\.api\.espn\.com\/apis\/common\/v3\/sports\/football\/nfl\/athletes\/4426338\/stats\?season=2026&seasontype=2$/);
