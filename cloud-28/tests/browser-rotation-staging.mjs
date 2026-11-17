@@ -1,13 +1,13 @@
 import {chromium} from 'playwright';
 
 const root="https://man-cave-28-page.broncos5523.workers.dev";
-const uri=root+"/staging/player.html?rotate=off&qa=rotation-v1";
+const uri=root+"/staging/player.html?rotate=off&qa=rotation-v2";
 const browser=await chromium.launch({headless:true});
 const page=await browser.newPage({viewport:{width:720,height:1280}});
 const errors=[],reqs=[];
 page.on("pageerror",err=>errors.push((err.stack||String(err)).slice(0,700)));
 page.on("response",r=>{
-  if(/\/staging\/(api\/|boards\.json|boards\/|player\.js)/.test(r.url()))
+  if(/\/staging\/(api\/|boards\.json|boards\/|player\.js)|\/api\/board\/|ticker_.*\.mjs/.test(r.url()))
     reqs.push({code:r.status(),path:new URL(r.url()).pathname});
 });
 await page.route('**/*',route=>route.request().resourceType()==="image"?route.abort():route.continue());
@@ -61,5 +61,9 @@ try{
   if(second.index!==1||second.visible!=="page2_nfl")throw Error("Approved second board did not replace first");
   if(!reqs.some(x=>x.code===200&&x.path==="/staging/boards.json"))throw Error("Board manifest not loaded");
   if(!reqs.some(x=>x.code===200&&x.path.startsWith("/staging/api/state")))throw Error("Local playback API unavailable");
+  for(const ticker of ["ticker_nfl_final.mjs","ticker_pro_final.mjs","ticker_college_final.mjs"]){
+    const bad=reqs.some(x=>x.path==="/"+ticker&&x.code!==200);
+    if(bad)throw Error("Original ticker missing: "+ticker);
+  }
   console.log("PASS_CLOUDFLARE_ORIGINAL_ROTATION_30S");
 }finally{await browser.close();}
