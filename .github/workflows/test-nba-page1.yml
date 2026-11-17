@@ -1,0 +1,25 @@
+name: Verify Cloudflare NBA Page 1 original 2026-27 data contract
+
+on:
+  push:
+    paths:
+      - cloud-28/nba-page1-contract.mjs
+      - cloud-28/tests/nba-page1.test.mjs
+      - cloud-28/cloudflare-live-proxy.mjs
+      - .github/workflows/test-nba-page1.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test 2026-27 NBA 30-team current standings and safely projected bracket
+        run: node --test cloud-28/tests/nba-page1.test.mjs cloud-28/tests/nfl-page2.test.mjs cloud-28/tests/nfl-page1.test.mjs cloud-28/tests/worker-proxy.test.mjs cloud-28/tests/nfl-season-adapter.test.mjs
+      - name: Cloudflare no-deploy Worker bundle
+        run: |
+          mkdir -p cloud-28/cloudflare-static-dist
+          printf '<!doctype html><title>dry run</title>' > cloud-28/cloudflare-static-dist/index.html
+          npx --yes wrangler@4 deploy --dry-run --outdir ./_nba-page1-bundle
