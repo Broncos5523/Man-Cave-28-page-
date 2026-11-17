@@ -12,7 +12,14 @@ try{
     page.on('response',r=>{if(r.url().includes('/api/board/'+board))api.push(r.status());});
     await page.goto(host+'/staging/boards/'+board+'.html?migration=priority-r1',{waitUntil:'domcontentloaded',timeout:45000});
     await page.waitForFunction(id=>{
-      try{return JSON.parse(localStorage.getItem('mc-v2-feed-'+id))?.dataState==='current'&&window.MCBoard?.ready;}catch{return false;}
+      try{
+        const feed=JSON.parse(localStorage.getItem('mc-v2-feed-'+id));
+        if(feed?.dataState!=='current'||!window.MCBoard?.ready)return false;
+        if(id==='page3_broncos')return feed.teamPanels.snapshot.every(p=>
+          [...document.querySelectorAll('#offense .rank,#defense .rank')].some(r=>
+            r.querySelector('.lbl')?.textContent===p.label&&r.querySelector('.num')?.textContent===p.value));
+        return true;
+      }catch{return false;}
     },board,{timeout:60000});
     const state=await page.evaluate(id=>{
       const feed=JSON.parse(localStorage.getItem('mc-v2-feed-'+id)),text=s=>document.querySelector(s)?.textContent.trim();
@@ -28,6 +35,7 @@ try{
         snapshot:feed.teamPanels.snapshot,schedule:feed.schedule.length,stats:[...document.querySelectorAll('#offense .rank,#defense .rank')].map(c=>({label:c.querySelector('.lbl')?.textContent,value:c.querySelector('.num')?.textContent}))});
       return detail;
     },board);
+    console.log('RENDERER_OBSERVATION',JSON.stringify(state));
     assert.ok(api.includes(200));assert.ok(!api.some(x=>x>=400));assert.deepEqual(errors,[]);
     assert.ok(state.loadedImages>0,'Original packaged imagery must load');
     if(board==='page1_cbb'){

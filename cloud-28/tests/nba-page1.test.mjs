@@ -45,6 +45,7 @@ test("NBA 2026-27 Page1 contract has 30 verified teams and eight projected first
   assert.deepEqual(j.standings.groups.map(x=>x.entries.length),[15,15]);
   assert.equal(j.playoffs.kind,"projection");
   assert.equal(j.playoffs.matches.length,8);
+  assert.ok(j.playoffs.matches.every(m=>m.stage==='first'&&['east','west'].includes(m.conference)));
   assert.ok(j.playoffs.matches.every(x=>x.winner===null&&x.teams.length===2&&x.state==="pre"));
   assert.equal(j.ticker.events.length,1);
   assert.equal(j.ticker.selected[0].away.id,"1");

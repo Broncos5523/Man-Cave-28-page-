@@ -42,8 +42,8 @@ export function standingsGroups(data,year){
           seed:number(stats.playoffSeed?.value),pct:number(stats.winPercent?.value),
           streak:stats.streak?.displayValue||'',stats,record:stats.overall?.displayValue||'',group:label,path};
       });
-      requireData(entries.length>0,'Empty standings group');
-      groups.push({name:label,path,entries});
+      requireData(entries.length>0||obj.children?.length,'Empty standings group');
+      if(entries.length)groups.push({name:label,path,entries});
     }
     for(const child of obj.children||[])walk(child,path);
   }

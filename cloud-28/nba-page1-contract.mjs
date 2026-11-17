@@ -51,14 +51,14 @@ function standingOf(row){
 }
 function projection(groups,year){
   const matches=[];
-  const pairs=[[1,8],[4,5],[3,6],[2,7]];
+  const pairs=[[1,8],[4,5],[2,7],[3,6]];
   for(const g of groups){
-    const league=g.name.startsWith("Eastern")?"East":"West";
+    const league=g.name.startsWith("Eastern")?"east":"west";
     for(const [a,b] of pairs){
       const t1=g.entries.find(x=>x.seed===a),t2=g.entries.find(x=>x.seed===b);
       insist(t1&&t2,"NBA projected seed unavailable");
       matches.push({
-        stage:"First Round",conference:league,teams:[t1,t2],
+        stage:"first",conference:league,teams:[t1,t2],
         winner:null,state:"pre",summary:"Current standings projection — no series result",
         eventId:null
       });

@@ -1,6 +1,6 @@
 # Man Cave Sports Book — Cloudflare migration status
 
-Updated: November 17, 2026 (11:30 AM America/New_York)
+Updated: November 17, 2026 (Work continuation)
 
 ## Locked baseline
 
@@ -19,6 +19,8 @@ Updated: November 17, 2026 (11:30 AM America/New_York)
 - NFL Page 1 (verified 2026): `https://man-cave-28-page.broncos5523.workers.dev/staging/boards/page1_nfl.html`
 - NFL Page 2 (verified 2026 leaders): `https://man-cave-28-page.broncos5523.workers.dev/staging/boards/page2_nfl.html`
 - NBA Page 1 (verified 2026–27 standings): `https://man-cave-28-page.broncos5523.workers.dev/staging/boards/page1_nba.html`
+- CBB Page 1 (verified current AP25 + labelled 2026 tournament recap): `https://man-cave-28-page.broncos5523.workers.dev/staging/boards/page1_cbb.html`
+- NBA Page 2 (verified six player + five team categories): `https://man-cave-28-page.broncos5523.workers.dev/staging/boards/page2_nba.html`
 
 ## Proven (real public Cloudflare + Chromium)
 
@@ -35,6 +37,9 @@ Updated: November 17, 2026 (11:30 AM America/New_York)
 11. Mocked Firebase assignments passed board `page4_broncos` hold and return-to-rotation; original approved TV3 command shape unchanged.
 12. 720×1280 portrait geometry and 1920×1080 rotated-clockwise landscape full-frame geometry match precisely (no two-pixel drift).
 13. All 316 original image assets and original pro/college/NFL ticker ESM modules copied as exact source bytes; no redesign.
+14. CBB Page 1 real Cloudflare + Chromium passed in run `44131558488`: all 25 live AP names compared to actual rendered DOM; 365 teams / 32 conferences; 60 regional bracket boxes painted, historical recap label correct, 213 images loaded, zero page JavaScript errors.
+15. NBA Page 2 real Cloudflare + Chromium passed in the same run: all six athlete identities/names compared to rendered cards, all five team categories, original images loaded, zero page errors. The run then correctly FAILED on Broncos defense DOM mismatch, so the whole workflow is not marked successful.
+16. Verified count: **6 / 28 pages**, **22 remaining**. Award/editorial exclusions remain explicit, including NFL/NBA MVP trackers.
 
 ## NOT YET VERIFIED / DO NOT CUT OVER
 
@@ -76,6 +81,8 @@ Updated: November 17, 2026 (11:30 AM America/New_York)
 - Broncos Page 3 (`page3_broncos`, the actual original board ID): direct-source Worker execution returned 200; 20 games (3 preseason, all 17 regular season), all eight exact original metrics and 32-team ranks. Not-yet-published postseason is empty, not fabricated. Explicit `event.seasonType.type` is carried into the original normalized `season.type` field.
 - CBB staging presentation blocker: the static exporter mixed a Render snapshot-only CSS override with the untouched original runtime. The Cloudflare exporter now omits that override so the original Gold Master renderer controls its historical recap. Gold Master files are not edited.
 - Local full regression now 35 passed, zero failed. Staging rebuilt: 28 original pages, 316 verified original images, no unreadable packaged image URLs. Still no production receiver, controller or Firebase changes.
+- Broncos browser blocker identified: original inline defense updater used `site.web.api.espn.com/common-v3`, while the verified adapter used the reachable `site.api.espn.com/common-v3`. The relay now preserves its exact path/query and JSON contract on the compatible official host; pending browser recheck. No UI workaround or stat fabrication.
+- Additional NBA Page 1 contract review found wrong case/stage labels in projected JSON (`First Round`/`East` versus original renderer `first`/`east`). Corrected the DATA contract and original pairing order; no layout change. Recheck bracket DOM before final cutover.
 
 Port remaining current-season `/api/board` payload contracts, prioritizing NBA Page 2, CBB and NFL Page 3, keeping exact approved v8l JSON render categories. Four of 28 original pages have verified live data; 24 remain. Current NBA playoffs are seed projections only. Preserve the approved JSON shapes, original animations and 30s/7s timings. Then verify all board pages in Chromium, test Firebase controlled boards on a physical Onn, switch only the 32-inch receiver URL when safe, and finally migrate Xfinity and Yahoo backends off Render separately.
 

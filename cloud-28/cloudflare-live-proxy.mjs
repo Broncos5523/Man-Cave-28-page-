@@ -111,6 +111,10 @@ async function relay(request,ctx,jsonCap=5*1024*1024) {
   const src=new URL(request.url).searchParams.get("url");
   let target;
   try {target=validExternal(src);}catch(e){return json({ok:false,error:e.message},403);}
+  // Same official ESPN contract on the reachable Site host. The web host's
+  // common-v3 routes reject some Worker requests; no JSON fields are changed.
+  if(target.hostname==='site.web.api.espn.com'&&target.pathname.startsWith('/apis/common/v3/'))
+    target.hostname='site.api.espn.com';
   const ttl=ttlFor(target),cacheKey=new Request("https://man-cave-public-cache.invalid/"+
     (jsonCap===5*1024*1024?'':'internal-'+jsonCap+'/')+encodeURIComponent(target.toString()));
   const edgeCache=typeof caches!=="undefined"?caches.default:null;
