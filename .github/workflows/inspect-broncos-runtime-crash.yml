@@ -1,0 +1,39 @@
+name: Identify broken board-runtime peek dependency (no deployment)
+
+on:
+  push:
+    paths:
+      - .github/workflows/inspect-broncos-runtime-crash.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract SHA-verified original Gold Master
+        run: python cloud-28/prepare.py
+      - name: Inspect runtime crash and required global dependencies
+        shell: bash
+        run: |
+          python - <<'PY'
+          import pathlib,sys,re
+          sys.path.insert(0,"cloud-28")
+          import low_bandwidth_server as low
+          root=low.approved.APP
+          print("SOURCE_APP",root,flush=True)
+          p=root/"production/board-runtime.js"
+          assert p.is_file(),str(p)
+          lines=p.read_text(errors="replace").splitlines()
+          for idx,line in enumerate(lines):
+              print("BOARD_RUNTIME",idx+1,line[:350],flush=True)
+          for sub in ("peek(", ".peek", ".attach","MCBoard","SharedBoard"):
+              print("CONTAINS",sub,p.read_text().count(sub),flush=True)
+          b=low.approved.original.GOLD/"boards/page4_broncos.html"
+          text=b.read_text(errors="replace")
+          for idx,line in enumerate(text.splitlines()):
+              if re.search(r'board-runtime|\.attach\(|\.peek\(|MCBoard|DataBridge',line,re.I):
+                  print("BOARD_DEP",idx+1,line[:430],flush=True)
+          PY
