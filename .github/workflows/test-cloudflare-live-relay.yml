@@ -8,6 +8,7 @@ on:
       - cloud-28/wrangler-live-relay-test.jsonc
       - cloud-28/tests/worker-proxy.test.mjs
       - cloud-28/build_cloudflare_visual_staging.py
+      - wrangler.jsonc
       - .github/workflows/test-cloudflare-live-relay.yml
   workflow_dispatch:
 permissions:
@@ -41,6 +42,22 @@ jobs:
           assert (root/"production/spotlight-state.js").is_file()
           assert "MCSpotlightState" in (root/"production/spotlight-state.js").read_text()
           assert "mc-board-ready" in (root/"staging/board-standalone-host.js").read_text()
+          # Approved 30-second rotation exported with *only* transport
+          # substitutions. Same 28-board order and original player timings.
+          manifest=json.loads((root/"staging/boards.json").read_text())
+          assert len(manifest["boards"])==28
+          assert manifest["duration_ms"]==30000
+          player=(root/"staging/player.js").read_text()
+          page=(root/"staging/player.html").read_text()
+          assert "const DUR=30000" in player
+          assert "frame.src='/staging/boards/'" in player
+          assert "/staging/api/state" in player
+          assert "/staging/api/heartbeat" in player
+          assert "/staging/boards.json" in player
+          assert "MCSpotlightState" in (root/"production/spotlight-state.js").read_text()
+          assert "/staging/player.js" in page
+          assert "staging/boards/" in (root/"staging/index.html").read_text()
+          print("PASS original 30-second 28-board Cloudflare rotation staging exports",flush=True)
           assert len(list((root/"cdn-inline").iterdir()))==316
           print("PASS 28/28 unchanged Gold Master board staging copies load controlled public feed shim",flush=True)
           PY
