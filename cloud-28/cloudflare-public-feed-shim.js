@@ -19,6 +19,16 @@
     if(raw&&raw.startsWith('https://')){
       try{
         const url=new URL(raw);
+        // Targeted Broncos Page 4 source-compatibility route.
+        // ESPN Core responds HTTP 403 from Cloudflare. Use its accessible Site
+        // player-stat record but require the Worker to verify exact season/team.
+        // The original board's stat/spotlight parsing remains unchanged.
+        if(location.pathname==='/staging/boards/page4_broncos.html'&&url.hostname==='sports.core.api.espn.com'){
+          const match=/^\/v2\/sports\/football\/leagues\/nfl\/seasons\/(\d{4})\/types\/2\/athletes\/(\d{5,10})\/statistics(?:\/0)?$/.exec(url.pathname);
+          if(match){
+            return native('/migration-api/nfl/season-stats?season='+encodeURIComponent(match[1])+'&athlete='+encodeURIComponent(match[2])+'&team=7',init);
+          }
+        }
         if(allow.has(url.hostname)){
           return native('/proxy?url='+encodeURIComponent(url.href),init);
         }
