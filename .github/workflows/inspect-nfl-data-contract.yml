@@ -1,0 +1,20 @@
+name: Inspect exact NFL Page 1 and 2 renderer data contracts (read only)
+
+on:
+  push:
+    paths:
+      - cloud-28/inspect_nfl_data_contract.py
+      - .github/workflows/inspect-nfl-data-contract.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recover verified approved v8l source
+        run: python cloud-28/prepare.py
+      - name: Inspect original runtime reads and actual NFL JSON schema
+        run: python cloud-28/inspect_nfl_data_contract.py
