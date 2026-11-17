@@ -1,0 +1,22 @@
+name: Browser-test Cloudflare 32-inch receiver assignment logic (mock Firebase; no writes)
+
+on:
+  push:
+    paths:
+      - cloud-28/tests/browser-tv3-staging.mjs
+      - .github/workflows/browser-tv3-staging.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  receiver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Chromium browser
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Simulate selected board and return to rotation without accessing Firebase
+        run: node cloud-28/tests/browser-tv3-staging.mjs
