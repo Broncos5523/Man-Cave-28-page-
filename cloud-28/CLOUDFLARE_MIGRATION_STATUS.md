@@ -51,6 +51,13 @@ and [phone-friendly report](https://github.com/Broncos5523/Man-Cave-28-page-/blo
 | NCAA Football / Arizona | PASS | PASS | PASS | PASS |
 | NCAA Basketball / Arizona | PASS | PASS | PASS | PASS |
 
+## November 17 Arizona Page 4 nested readiness fix — targeted test PASSED
+
+- **Root cause confirmed:** original locked Arizona Page 4 outer wrapper expects the child hosted app to expose `MCBoard.ready`. The nested hosted app rendered its player stats but did not have the approved lifecycle bridge, so the outer wrapper timed out after 20 seconds, emitted `mc-board-load-failed`, and the rotation retried/skipped.
+- **Safe fix:** Cloudflare *staging export only* injects the already-approved original `/production/board-runtime.js` into the nested hosted HTML with the Arizona Page 4 board ID. It validates actual child DOM/image/font readiness before exposing `MCBoard.ready`. The Gold Master and original graphics remain byte-identical. Staging-build regex fix and exports: `082be37e78397df9de1434333faea2c1fabc01ed`, all static staging tests passed.
+- **Independent targeted acceptance passed:** [GitHub Actions run 44178628731](https://github.com/Broncos5523/Man-Cave-28-page-/actions/runs/44178628731) on November 17 at 21:20 UTC confirmed the exact Cloudflare nested script was deployed. Real Chromium resumed from Arizona Football Page 3 and visibly transitioned to Page 4 at index 23, with **both nested child and outer wrapper `MCBoard.ready=true` and active=true**, zero page JavaScript errors, and original 30-second handoff intact.
+- **Still pending:** full 28-board uninterrupted second endurance loop and physical Onn rotation/remote selection. The targeted reproduction logged an intermittent `/api/board/page3_arizona_cfb` HTTP 500 despite successful Page 4 rotation; this source-data error needs separate source reliability investigation and must not be confused with the fixed nested iframe readiness issue. Do not cut over production yet.
+
 ## November 17 Onn preflight and long-rotation gate (latest)
 
 - **Physical Onn preflight page opened successfully per owner.** This confirms the diagnostic page loads on the device; it does **not** certify physical rotation, Firebase switching or session stability. The phone-portrait and TV-landscape Chromium checks both passed 6/6, workflow [44171886769](https://github.com/Broncos5523/Man-Cave-28-page-/actions/runs/44171886769).
