@@ -25,6 +25,7 @@ jobs:
               const response=await fetch(uri,{headers:{'Cache-Control':'no-cache'}});
               const html=await response.text();
               if(response.ok&&html.includes('/staging/tv3-remote.js')&&
+                 html.includes('/staging/tv3-readonly-diagnostics.js?v=1')&&
                  !html.includes('mc-tv3-rotate-button')&&!html.includes('mc-tv3-rotate-menu')){
                 console.log('PASS_PUBLISHED_RECEIVER_WITHOUT_ROTATE_TAB');
                 ok=true;break;
