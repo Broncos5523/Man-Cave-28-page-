@@ -1,0 +1,68 @@
+name: Verify existing Onn TV start command with low-bandwidth delivery
+
+on:
+  push:
+    paths:
+      - .github/workflows/smoke-onn-startup.yml
+      - cloud-28/server.py
+      - cloud-28/low_bandwidth_server.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  onntest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract verified approved v8l source
+        run: python cloud-28/prepare.py
+      - name: Start original Render command and verify unchanged public routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PORT=8787
+          PYTHONUNBUFFERED=1 python cloud-28/server.py > /tmp/onn-start.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true; cat /tmp/onn-start.log | tail -35' EXIT
+          for i in $(seq 1 35); do
+            if curl -fsS --max-time 2 http://127.0.0.1:8787/healthz > /tmp/health.json; then break; fi
+            sleep 1
+          done
+          python - <<'PY'
+          import json
+          from urllib.request import urlopen
+          from urllib.parse import urlsplit
+          root="http://127.0.0.1:8787"
+          def load(path):
+              with urlopen(root+path,timeout=18) as r:
+                  return r.status,r.headers,r.read()
+          status,headers,health=load("/healthz")
+          print("HEALTH",status,health.decode()[:400],flush=True)
+          assert status==200 and json.loads(health)["boards"]==28
+          status,headers,config=load("/production/boards.json")
+          print("BOARDS_CONFIG",status,len(config),flush=True)
+          assert status==200
+          print("BOARD_CONFIG_PREVIEW",config[:450].decode(errors="replace"),flush=True)
+          status,headers,menu=load("/onn/")
+          print("ONN_MENU",status,len(menu),flush=True)
+          assert status==200 and b"ROTATE" in menu
+          status,headers,rotated=load("/?rotate=off")
+          print("ROTATED_PLAYER",status,len(rotated),flush=True)
+          assert status==200 and b"production/player.js" in rotated
+          status,headers,board=load("/production/board/page1_nfl")
+          print("OPTIMIZED_BOARD",status,len(board),headers.get_all("Cache-Control"),flush=True)
+          assert status==200 and b"/cdn-inline/" in board
+          assert len(board)<250000, "Approved image extraction did not run"
+          assert headers.get_all("Cache-Control")==["public, max-age=1800"]
+          import re
+          image=re.search(rb"/cdn-inline/[a-f0-9]{64}\.(png|jpg|webp|gif|svg|avif|bmp)",board)
+          assert image,"Expected original externalized artwork"
+          status,headers,data=load(image.group(0).decode())
+          assert status==200 and len(data)>1000
+          assert headers.get_all("Cache-Control")==["public, max-age=31536000, immutable"]
+          print("IMAGE_ROUTE",status,len(data),headers.get("Cache-Control"),flush=True)
+          print("PASS: existing Render start command now boots approved 28-board player with cached exact-byte assets",flush=True)
+          PY
