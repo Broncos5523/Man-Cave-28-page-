@@ -12,7 +12,7 @@ for name in ['runtime_nfl_p1_v7j.js','runtime_nfl_p2_v7i.js','runtime.js','ticke
     lines=s.splitlines()
     print("=== ORIGINAL_JS",name,"BYTES",len(s),"LINES",len(lines),"===",flush=True)
     for i,l in enumerate(lines):
-        if re.search(r'api/board|async function (load|fetch|refresh|render|tick)|function (apply|render|paint|refresh)|data\.|payload\.|response\.|json\.|\\bfetch\\(',l,re.I):
+        if any(needle in l for needle in ('api/board','function ','data.','payload.','response.','json.','fetch(')):
             print(f'JS {name}:{i+1} {l[:600]}',flush=True)
             for nearby in range(i+1,min(i+3,len(lines))):
                 if len(lines[nearby])<320:print(f'CONTEXT {name}:{nearby+1} {lines[nearby]}',flush=True)
