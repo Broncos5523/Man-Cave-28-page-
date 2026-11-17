@@ -101,6 +101,7 @@ def make_index(boards):
             'Do not change your TV receiver address.</p></div>'
             '<p><a style="background:#19314b;border-color:#4df0bd;color:#fff" href="/staging/player.html?rotate=off">'
             '▶ Open original 28-board rotation preview (30 seconds per page)</a></p>'
+            '<p><a href="/staging/tv3.html?rotate=off">Test 32-inch Onn Firebase receiver (read-only assignments)</a></p>'
             '<section class="grid">'+''.join(links)+'</section></main></body></html>').encode()
 
 def main():
@@ -159,6 +160,39 @@ def main():
 </script>"""
         player_html=player_html.replace(anchor,mode_script+'<script defer src="/staging/player.js"></script>')
         save_binary(STAGE/"player.html",player_html.encode())
+        # Firebase TV3 receiver is separated from the ordinary rotation preview.
+        # It listens to existing screens/third assignments but never writes
+        # Firebase, and its overlay URLs point only to Cloudflare staging.
+        remote=(HERE/"tv3-remote.js").read_text()
+        start=remote.find("function report(event,detail){")
+        stop=remote.find("window.__MC_TV3_REMOTE__=",start)
+        if start<0 or stop<=start:
+            raise RuntimeError("Approved TV3 telemetry wrapper changed")
+        # No external event reporting in staging; browser-local diagnostic only.
+        monitor="""function report(event,detail){
+ try{
+  var arr=window.__MC_TV3_STAGING_EVENTS__||(window.__MC_TV3_STAGING_EVENTS__=[]);
+  arr.push({event:event,detail:String(detail||'').slice(0,90),at:Date.now()});
+  if(arr.length>70)arr.shift();
+ }catch(e){}
+}
+"""
+        remote=remote[:start]+monitor+remote[stop:]
+        old="/production/board/'+encodeURIComponent(desired)+'?tv3=hold"
+        replacement="/staging/boards/'+encodeURIComponent(desired)+'.html?tv3=hold"
+        if remote.count(old)!=1:
+            raise RuntimeError("TV3 board selection URL changed")
+        remote=remote.replace(old,replacement)
+        if "app.database().ref('screens/third').on('value'" not in remote:
+            raise RuntimeError("Existing TV3 Firebase receiver binding missing")
+        if "database().ref('screens/third').set(" in remote:
+            raise RuntimeError("TV3 receiver may not write assignments")
+        save_binary(STAGE/"tv3-remote.js",remote.encode())
+        if player_html.count("</body>")!=1:
+            raise RuntimeError("Original player HTML footer changed")
+        tv3_html=player_html.replace("</body>",
+            '<script defer src="/staging/tv3-remote.js?v=cloudflare-staging-r1"></script></body>')
+        save_binary(STAGE/"tv3.html",tv3_html.encode())
         player_js=request(base,"/production/player.js").decode()
         substitutions=[
             ("'/production/boards.json'","'/staging/boards.json'"),
