@@ -43,6 +43,8 @@ function validExternal(raw) {
  */
 function seasonStatsFromSite(data,season,athlete,team="7") {
   if(!data||!Array.isArray(data.categories))throw Error("ESPN athlete statistics missing categories");
+  const seasonType=(data.filters||[]).find(filter=>filter?.name==="seasontype");
+  if(String(seasonType?.value)!=="2")throw Error("ESPN did not confirm regular-season statistics");
   const categories=[],selectedYears=new Set();
   for(const category of data.categories) {
     if(!category||!Array.isArray(category.statistics)||!Array.isArray(category.names))continue;
@@ -53,8 +55,8 @@ function seasonStatsFromSite(data,season,athlete,team="7") {
     const stats=[];
     for(let i=0;i<Math.min(category.names.length,entry.stats.length);i++) {
       const name=category.names[i],raw=entry.stats[i];
-      if(typeof name!=="string"||!name)continue;
-      const number=Number(String(raw??"").replace(/[, %]/g,""));
+      if(typeof name!=="string"||!name||raw===null||raw===undefined||String(raw).trim()==="")continue;
+      const number=Number(String(raw).replace(/[, %]/g,""));
       if(!Number.isFinite(number))continue;
       stats.push({name,value:number,displayValue:String(raw)});
     }
