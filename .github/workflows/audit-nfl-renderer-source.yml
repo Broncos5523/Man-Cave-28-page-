@@ -1,0 +1,18 @@
+name: Inspect NFL live Worker source contracts and ESPN public responses
+
+on:
+  push:
+    paths:
+      - cloud-28/audit-nfl-renderer-source.py
+      - .github/workflows/audit-nfl-renderer-source.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - run: python cloud-28/prepare.py
+      - run: python cloud-28/audit-nfl-renderer-source.py
