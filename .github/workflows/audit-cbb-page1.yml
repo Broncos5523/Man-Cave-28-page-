@@ -1,0 +1,20 @@
+name: Audit approved college basketball Page1 and 2026-27 ESPN feeds (no deploy)
+
+on:
+  push:
+    paths:
+      - cloud-28/audit-cbb-page1.py
+      - .github/workflows/audit-cbb-page1.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore approved v8l baseline
+        run: python cloud-28/prepare.py
+      - name: Inspect original CBB JSON shape and public current season endpoints
+        run: python cloud-28/audit-cbb-page1.py
