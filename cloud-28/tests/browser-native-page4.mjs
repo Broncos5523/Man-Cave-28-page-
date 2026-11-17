@@ -69,6 +69,17 @@ try{
     };check();
    });
    const frame=match();if(!frame)throw Error('Native embedded app not found');
+   if(child){
+    // A nested Arizona board can render accurate stats and still fail its
+    // parent's approved MCBoard lifecycle, breaking 30-second rotation.
+    // Require both real lifecycle modules to finish initialization.
+    await page.waitForFunction(()=>{
+      const nested=document.querySelector('iframe[src*="/hosted/page4_arizona_cfb/"]');
+      return window.MCBoard?.ready===true &&
+        nested?.contentWindow?.MCBoard?.ready===true;
+    },null,{timeout:32000});
+    result.nestedLifecycleReady=true;
+   }
    await frame.waitForFunction(({id,expected})=>{
     const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
     const number=s=>Number(String(s).replace(/[,%+]/g,''));
