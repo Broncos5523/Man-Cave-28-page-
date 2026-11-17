@@ -165,15 +165,18 @@ def main():
         if original_bridge.count(source)!=1:
             raise RuntimeError("Original board runtime host anchor changed; review before staging")
         resolver=(b'const host=(()=>{'
-                  b'let cursor=window;'
+                  b'let cursor=window,candidate=window;'
                   b'for(let depth=0;depth<8;depth++){'
                   b'let parent;try{parent=cursor.parent;}catch(e){break;}'
                   b'if(!parent||parent===cursor)break;'
                   b'try{'
-                  b'if(parent.MCSpotlightState&&parent.MCStore)return parent;'
+                  b'if(parent.MCSpotlightState&&parent.MCStore){'
+                  b'if(parent.__MC_PRODUCTION)return parent;'
+                  b'if(candidate===window)candidate=parent;'
+                  b'}'
                   b'}catch(e){break;}'
                   b'cursor=parent;'
-                  b'}return window;'
+                  b'}return candidate;'
                   b'})();')
         safe_bridge=original_bridge.replace(source,resolver,1)
         save_binary(STAGE/"board-runtime-ancestor.js",safe_bridge)
