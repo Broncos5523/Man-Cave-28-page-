@@ -1,0 +1,27 @@
+name: Public NFL Page 1 Cloudflare live-data/browser verification
+
+on:
+  push:
+    paths:
+      - cloud-28/tests/public-nfl-page1.py
+      - cloud-28/tests/browser-nfl-page1-live.mjs
+      - .github/workflows/check-live-nfl-page1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify current ESPN NFL scoreboard + 32-team standings on public Worker
+        run: python cloud-28/tests/public-nfl-page1.py
+      - name: Install browser
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Run original NFL Page 1 in browser and verify live JSON actually rendered
+        run: node cloud-28/tests/browser-nfl-page1-live.mjs
