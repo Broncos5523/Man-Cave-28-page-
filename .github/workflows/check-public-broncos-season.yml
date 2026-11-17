@@ -1,0 +1,52 @@
+name: Check public 2026 Broncos Cloudflare season stats (read-only)
+
+on:
+  push:
+    paths:
+      - .github/workflows/check-public-broncos-season.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch public Cloudflare season-only player statistics
+        shell: bash
+        run: |
+          python - <<'PY'
+          import urllib.request, urllib.error, json, time
+          host="https://man-cave-28-page.broncos5523.workers.dev"
+          url=host+"/migration-api/nfl/season-stats?season=2026&athlete=4426338&team=7"
+          result=None
+          for attempt in range(8):
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(url,headers={"Accept":"application/json"}),timeout=14) as r:
+                      data=json.load(r)
+                      if r.status!=200:raise RuntimeError("Non-200 response")
+                      if not data.get("$ref","").find("/seasons/2026/types/2/athletes/4426338/statistics/0")>=0:
+                          raise RuntimeError("Year/athlete resource mismatch")
+                      if data.get("season",{}).get("year")!=2026:raise RuntimeError("Not 2026")
+                      if data.get("dataSource","").find("NOT career totals")<0 and "NOT career totals" not in data.get("dataSource",""):
+                          raise RuntimeError("Source provenance missing")
+                      categories=data.get("splits",{}).get("categories",[])
+                      passing=next((c for c in categories if c.get("name")=="passing"),None)
+                      if passing is None:raise RuntimeError("Missing 2026 passing stat category")
+                      yds=next((v.get("value") for v in passing.get("stats",[]) if v.get("name")=="passingYards"),None)
+                      print("VERIFIED_2026_BRONCOS_STATS",r.status,"passingYards",yds,"categories",len(categories),
+                            "source",r.headers.get("X-Man-Cave-Data-Source"),flush=True)
+                      assert isinstance(yds,(int,float)) and 0<yds<7000,"Implausible season value"
+                      result=data
+                      break
+              except urllib.error.HTTPError as e:
+                  msg=e.read(300).decode(errors="replace")
+                  print("Public stats attempt",attempt+1,"HTTP",e.code,msg[:240],flush=True)
+              except Exception as e:print("Public stats attempt",attempt+1,str(e)[:230],flush=True)
+              time.sleep(8)
+          assert result,"Cloudflare public year-scoped 2026 NFL stat adapter unverified"
+          print("PUBLIC_CLOUDFLARE_NFL_SEASON_ADAPTER_PASS",flush=True)
+          PY
