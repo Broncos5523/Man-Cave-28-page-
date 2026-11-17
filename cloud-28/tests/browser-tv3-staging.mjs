@@ -98,4 +98,27 @@ try{
   if(!rotated.fit.rotated||rotated.fit.mode!=="cw")
     throw Error("Expected original approved clockwise Onn rotation");
   console.log("PASS_CLOUDFLARE_TV3_ONN_LANDSCAPE_90DEG_GEOMETRY");
+
+  // The on-TV orientation chooser must work with D-pad/click without touching
+  // Firebase assignments or the approved board HTML. It is an outer HUD only.
+  const orientationButton=page.locator('#mc-tv3-rotate-button');
+  if(await orientationButton.count()!==1)throw Error("Onn TV orientation control missing");
+  await orientationButton.click();
+  const menu=page.locator('#mc-tv3-rotate-menu');
+  if(!await menu.isVisible())throw Error("Screen orientation menu failed to open");
+  const cwSelected=await page.locator('#mc-tv3-rotate-menu button[data-mode="cw"]').getAttribute('aria-pressed');
+  if(cwSelected!=='true')throw Error("TV receiver did not identify selected clockwise orientation");
+  await page.locator('#mc-tv3-rotate-menu button[data-mode="ccw"]').click();
+  await page.waitForURL(url=>url.pathname==='/staging/tv3.html'&&url.searchParams.get('rotate')==='ccw'
+    &&url.searchParams.get('test')==='tv3-landscape-mock',{timeout:20000});
+  await page.waitForFunction(()=>window.__MC_ONN_FIT_REPORT__?.mode==="ccw"&&
+    window.__MC_ONN_FIT_REPORT__?.rotated===true,null,{timeout:17000});
+  const oriented=await page.evaluate(()=>({
+    mode:window.__MC_ONN_FIT_REPORT__?.mode,
+    selected:document.querySelector('#mc-tv3-rotate-menu button.selected')?.dataset.mode,
+    parent:window.__MC_TV3_REMOTE__?.getState?.()
+  }));
+  if(oriented.mode!=='ccw'||oriented.selected!=='ccw')
+    throw Error('Onn CCW menu choice did not update the actual rotated stage');
+  console.log('PASS_CLOUDFLARE_TV3_SCREEN_ORIENTATION_MENU_NO_FIREBASE_WRITE',JSON.stringify(oriented));
 }finally{await browser.close();}
