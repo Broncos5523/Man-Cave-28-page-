@@ -1,0 +1,16 @@
+{
+  "checkedAt": "2026-11-17T18:35:30.623664+00:00",
+  "sourceCommit": "039cc931d9ea9b00651cb3a68e1c74029aa3553e",
+  "description": "Automated staging validation only; physical Onn receiver not verified",
+  "gates": {
+    "contracts": "success",
+    "publicCoreSource": "success",
+    "exactStagingDeployment": "cancelled",
+    "browserSuites": "cancelled"
+  },
+  "automatedStagingPassed": false,
+  "boardResults": {},
+  "suites": {},
+  "physicalOnnVerified": false,
+  "productionCutoverAuthorized": false
+}
