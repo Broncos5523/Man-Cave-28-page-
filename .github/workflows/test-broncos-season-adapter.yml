@@ -1,0 +1,21 @@
+name: Verify Broncos Cloudflare 2026 season adapter (no deploy)
+
+on:
+  push:
+    paths:
+      - cloud-28/cloudflare-live-proxy.mjs
+      - cloud-28/tests/nfl-season-adapter.test.mjs
+      - .github/workflows/test-broncos-season-adapter.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test 2026-only data, no career totals, no credentials
+        run: node --test cloud-28/tests/nfl-season-adapter.test.mjs cloud-28/tests/worker-proxy.test.mjs
