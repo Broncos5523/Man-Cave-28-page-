@@ -7,10 +7,12 @@ def get(url):
 d=get(base+"/apis/common/v3/sports/football/nfl/statistics/byteam?season=2026&seasontype=2&limit=100")
 maps={c["name"]:c["names"] for c in d["categories"]}
 settings=[
-  ("PASSING OFFENSE","passing",0,"passingYardsPerGame"),
+  ("GROSS PASSING OFFENSE","passing",0,"passingYardsPerGame"),
+  ("NET PASSING OFFENSE","passing",0,"netPassingYardsPerGame"),
   ("RUSHING OFFENSE","rushing",0,"rushingYardsPerGame"),
   ("TEAM SACKS","passing",1,"sacks"),
-  ("INTERCEPTIONS","defensiveinterceptions",1,"interceptions"),
+  ("INTERCEPTIONS DEFENSE FIRST","defensiveinterceptions",0,"interceptions"),
+  ("INTERCEPTIONS DEFENSE SECOND","defensiveinterceptions",1,"interceptions"),
   ("PASSING TDS","passing",0,"passingTouchdowns")
 ]
 print("TEAM_STATS_SEASON",d["requestedSeason"]["year"],d["requestedSeason"]["type"]["type"],flush=True)
