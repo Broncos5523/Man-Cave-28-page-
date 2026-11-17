@@ -125,4 +125,24 @@ try{
       throw Error("Fixed CCW board assignment misaligned on "+dimension);
   }
   console.log("PASS_TV3_FIXED_CCW_URL_NO_ROTATE_TAB",JSON.stringify(ccw));
+  if(await page.locator('#mc-tv3-readonly-diagnostics').count())
+    throw Error("Normal TV receiver should never display diagnostic overlay");
+
+  // Diagnostic overlay appears only when explicitly requested. Firebase
+  // remains mocked/read-only, and this does not send any controller commands.
+  await page.goto(base+"/staging/tv3.html?rotate=ccw&debug=1&test=tv3-mock-diagnostics",{
+    waitUntil:"domcontentloaded",timeout:30000
+  });
+  await page.waitForFunction(()=>window.__mockFirebaseThird&&
+    document.querySelector('#mc-tv3-readonly-diagnostics')?.textContent?.includes('Firebase: Connected'),
+    null,{timeout:17000});
+  await page.evaluate(()=>window.__mockFirebaseThird({type:"board",board:"page1_nfl"}));
+  await page.waitForFunction(()=>document.querySelector('#mc-tv3-readonly-diagnostics')?.textContent
+    .includes('On screen: page1_nfl'),null,{timeout:12000});
+  const diagnostic=await page.locator('#mc-tv3-readonly-diagnostics').textContent();
+  if(!diagnostic.includes('Assigned: page1_nfl')||!diagnostic.includes('On screen: page1_nfl'))
+    throw Error("Read-only diagnostic did not identify the receiver's selected board");
+  if(await page.locator('#mc-tv3-rotate-button').count())
+    throw Error("Rotate tab must remain removed even in debug mode");
+  console.log("PASS_TV3_READONLY_DEBUG_STATUS_WITH_MOCKED_FIREBASE",diagnostic.replaceAll('\\n',' | '));
 }finally{await browser.close();}
