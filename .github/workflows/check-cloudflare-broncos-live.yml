@@ -1,0 +1,59 @@
+name: Verify Broncos 2026 stats on live Cloudflare staging
+
+on:
+  push:
+    paths:
+      - .github/workflows/check-cloudflare-broncos-live.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe public 2026 Broncos ESPN-compatible API
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,time,urllib.request,urllib.error,urllib.parse
+          host="https://man-cave-28-page.broncos5523.workers.dev"
+          def get(path):
+              with urllib.request.urlopen(urllib.request.Request(host+path,headers={"Accept":"application/json","User-Agent":"ManCaveBroncos2026Verification/1.0"}),timeout=18) as r:
+                  return r.status,r.headers,json.loads(r.read(5000000))
+          # The CF Git-connected build may lag the GitHub commit; allow modest
+          # readiness polling and refuse to claim success on static build alone.
+          for attempt in range(10):
+              try:
+                  status,h,data=get("/migration-api/nfl/season-stats?season=2026&athlete=4426338&team=7")
+                  if status==200 and data.get("splits",{}).get("categories"):break
+              except Exception as e:
+                  print("2026 STATS READINESS",attempt+1,str(e)[:130],flush=True)
+              time.sleep(12)
+          else:
+              raise SystemExit("Cloudflare 2026 Broncos stat adapter not publicly verified")
+          assert data.get("season",{}).get("year")==2026
+          assert "/seasons/2026/types/2/athletes/4426338/statistics/0" in data["$ref"]
+          cats={cat["name"]:{s["name"]:s["value"] for s in cat["stats"]} for cat in data["splits"]["categories"]}
+          assert cats.get("passing",{}).get("passingYards",0)>100
+          assert cats.get("passing",{}).get("passingTouchdowns",0)>=0
+          print("PASS_PUBLIC_BRONCOS_2026_BO_NIX",json.dumps({k:cats["passing"].get(k) for k in ["passingYards","passingTouchdowns","completionPct"]}),flush=True)
+          print("SOURCE",h.get("X-Man-Cave-Data-Source"),flush=True)
+          # Source verification also ensures team-filtered roster is available.
+          roster="https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/7/roster?season=2026"
+          status,headers,rosterData=get("/proxy?url="+urllib.parse.quote(roster,safe=""))
+          assert status==200 and rosterData["season"]["year"]==2026
+          players=[p for g in rosterData.get("athletes",[]) for p in g.get("items",[])]
+          defensive=next((p for p in players if (p.get("displayName") or "")=="Alex Singleton"),None)
+          assert defensive,"Alex Singleton not found in 2026 Denver roster"
+          did=defensive["id"]
+          status,headers,stats=get(f"/migration-api/nfl/season-stats?season=2026&athlete={did}&team=7")
+          assert stats.get("season",{}).get("year")==2026
+          assert stats.get("splits",{}).get("categories")
+          names={s["name"] for c in stats["splits"]["categories"] for s in c.get("stats",[])}
+          print("PASS_PUBLIC_BRONCOS_2026_DEFENDER",defensive.get("displayName"),did,"STAT_KEYS",sorted(names.intersection({"totalTackles","sacks","interceptions"})),flush=True)
+          status,headers,board=get("/migration-api/health")
+          assert board["firebaseTV"]=="NOT SWITCHED"
+          print("STILL_STAGING_ONLY",board["boardApi"],board["firebaseTV"],flush=True)
+          PY
