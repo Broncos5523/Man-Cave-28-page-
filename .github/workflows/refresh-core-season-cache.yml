@@ -1,0 +1,40 @@
+name: Refresh verified ESPN season stats for Cloudflare
+on:
+  push:
+    branches: [main]
+    paths:
+      - cloud-28/refresh-core-season-cache.py
+      - .github/workflows/refresh-core-season-cache.yml
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: verified-public-season-cache
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect current-year, regular-season public ESPN data
+        run: python cloud-28/refresh-core-season-cache.py
+      - name: Publish data on its separate branch
+        shell: bash
+        run: |
+          data_dir="$RUNNER_TEMP/mancave-season-data"
+          if git ls-remote --exit-code origin refs/heads/cloudflare-live-data >/dev/null; then
+            git fetch origin cloudflare-live-data
+            git worktree add --detach "$data_dir" FETCH_HEAD
+          else
+            git worktree add --detach "$data_dir" HEAD
+            git -C "$data_dir" switch --orphan cloudflare-live-data
+          fi
+          cp _current_data/espn-core-season-cache.json "$data_dir/espn-core-season-cache.json"
+          git -C "$data_dir" config user.name 'github-actions[bot]'
+          git -C "$data_dir" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C "$data_dir" add espn-core-season-cache.json
+          git -C "$data_dir" commit -m 'Refresh verified ESPN current-season statistics'
+          git -C "$data_dir" push origin HEAD:cloudflare-live-data

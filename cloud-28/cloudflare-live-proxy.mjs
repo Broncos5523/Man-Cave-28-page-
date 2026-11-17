@@ -4,6 +4,9 @@ import {normalizeEvent,tickerFromEvents} from './board-contract-common.mjs';
 import {buildNbaPage2,basketballLeaderSpecs} from './nba-page2-contract.mjs';
 import {buildNflPage3} from './nfl-page3-contract.mjs';
 import {remainingBoard,remainingBoardIds} from './remaining-board-api.mjs';
+import {currentCoreFallback} from './core-season-cache.mjs';
+import {page4LiveApi} from './page4-live-api.mjs';
+import {bracketologyApi} from './bracketology-api.mjs';
 import {buildNflPage2} from './nfl-page2-contract.mjs';
 import {buildNflPage1} from './nfl-page1-contract.mjs';
 /*
@@ -107,7 +110,7 @@ async function verifiedNflSeasonStats(request,ctx) {
   }
 }
 
-async function relay(request,ctx,jsonCap=5*1024*1024) {
+async function relay(request,ctx,jsonCap=5*1024*1024,cacheable=true) {
   if(request.method!=="GET") return json({ok:false,error:"GET only"},405);
   const src=new URL(request.url).searchParams.get("url");
   let target;
@@ -118,7 +121,7 @@ async function relay(request,ctx,jsonCap=5*1024*1024) {
     target.hostname='site.api.espn.com';
   const ttl=ttlFor(target),cacheKey=new Request("https://man-cave-public-cache.invalid/"+
     (jsonCap===5*1024*1024?'':'internal-'+jsonCap+'/')+encodeURIComponent(target.toString()));
-  const edgeCache=typeof caches!=="undefined"?caches.default:null;
+  const edgeCache=cacheable&&typeof caches!=="undefined"?caches.default:null;
   if(edgeCache) {
     const cached=await edgeCache.match(cacheKey);
     if(cached){const headers=new Headers(cached.headers);headers.set("X-Man-Cave-Data-Source","edge-cache");
@@ -134,9 +137,20 @@ async function relay(request,ctx,jsonCap=5*1024*1024) {
       signal:AbortSignal.timeout(13000)
     });
   } catch(e) {
+    if(target.hostname==='sports.core.api.espn.com'){
+      const cached=await currentCoreFallback(target.toString());if(cached)return cached;
+    }
     return json({ok:false,error:"Sports data source temporarily unavailable"},503);
   }
-  if(!upstream.ok) return json({ok:false,error:"Sports data source HTTP "+upstream.status},502);
+  if(!upstream.ok){
+    if(target.hostname==='sports.core.api.espn.com'){
+      const cached=await currentCoreFallback(target.toString());if(cached){
+        if(edgeCache&&ctx?.waitUntil&&cached.headers.get('Cache-Control')!=='no-store')ctx.waitUntil(edgeCache.put(cacheKey,cached.clone()));
+        return cached;
+      }
+    }
+    return json({ok:false,error:"Sports data source HTTP "+upstream.status},502);
+  }
   if(upstream.status>=300 && upstream.status<400)return json({ok:false,error:"Upstream redirect not approved"},502);
   const type=(upstream.headers.get("content-type")||"").split(";")[0].trim().toLowerCase();
   if(!TEXT_MIME.test(type)&&!IMAGE_MIME.test(type))return json({ok:false,error:"Unsupported upstream content type"},502);
@@ -169,7 +183,9 @@ async function relay(request,ctx,jsonCap=5*1024*1024) {
   return answer;
 }
 async function publicJson(url,ctx,cap){
-  const response=await relay(new Request('https://man-cave-relay.invalid/proxy?url='+encodeURIComponent(url)),ctx,cap);
+  // The assembled board response is cached once. Avoid a Cache API read/write
+  // per internal source: those operations also count toward Worker limits.
+  const response=await relay(new Request('https://man-cave-relay.invalid/proxy?url='+encodeURIComponent(url)),ctx,cap,false);
   if(!response.ok)throw Error('ESPN public source HTTP '+response.status+': '+new URL(url).pathname);
   return response.json();
 }
@@ -376,6 +392,8 @@ export default {
     if(path==='/api/board/page1_cbb')return cachedBoard(request,ctx,cbbPage1Api);
     if(path==='/api/board/page2_nba')return cachedBoard(request,ctx,nbaPage2Api);
     if(path==='/api/board/page3_broncos')return cachedBoard(request,ctx,nflPage3Api);
+    if(path==='/production/api/page4-live'||path==='/production/api/draft-watch-stats')return page4LiveApi(request,ctx,publicJson);
+    if(path==='/production/api/bracketology-status')return bracketologyApi(request);
     if(remainingBoardIds.some(board=>path==='/api/board/'+board))return cachedBoard(request,ctx,
       (req,c)=>remainingBoard(req,c,publicJson,gameWindow));
     if(path==='/staging/api/state'||path==='/staging/api/heartbeat')

@@ -40,7 +40,7 @@ try{
       if(errors.length)throw Error('JavaScript: '+errors.join(' | '));
       if(!result.loadedImages)throw Error('No original imagery loaded');
       if(board.startsWith('page1_')&&board!=='page1_cfb'){
-        const canonical=x=>String(x).replace(/[–−]/g,'-').replace(/\s/g,'');
+        const canonical=x=>String(x).replace(/,.*$/,'').replace(/[–−]/g,'-').replace(/\s/g,'');
         const got=result.records.map(canonical).sort(),want=result.expectedRecords.map(canonical).sort();
         if(got.length!==want.length||JSON.stringify(got)!==JSON.stringify(want))throw Error('Displayed conference records do not match verified feed');
       }

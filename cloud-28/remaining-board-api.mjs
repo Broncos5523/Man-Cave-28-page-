@@ -5,16 +5,22 @@ export const remainingBoardIds=['page1_nhl','page1_mlb','page1_wnba','page1_cfb'
   'page2_nhl','page2_mlb','page2_wnba','page2_cfb','page2_cbb',
   'page3_celtics','page3_bruins','page3_redsox','page3_fever','page3_arizona_cfb','page3_arizona_cbb'];
 export async function remainingBoard(request,ctx,readJson,gameWindow){
-  const json=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json; charset=utf-8',
-    'Cache-Control':status===200?'public, max-age=60':'no-store','X-Content-Type-Options':'nosniff',
-    'X-Man-Cave-Contract':'original-v8l-remaining-staging'}});
+  const json=(value,status=200)=>{
+    const cached=(value.sources||[]).filter(s=>s.state==='verified-public-season-cache');
+    const remaining=cached.length?Math.floor(Math.min(...cached.map(s=>900-(Date.now()/1000-s.fetched_at)))):60;
+    if(status===200&&remaining<=0)return new Response(JSON.stringify({ok:false,error:'Verified season source expired'}),{status:503});
+    return new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json; charset=utf-8',
+      'Cache-Control':status===200?'public, max-age='+Math.min(60,remaining):'no-store','X-Content-Type-Options':'nosniff',
+      'X-Man-Cave-Contract':'original-v8l-remaining-staging'}});
+  };
   if(request.method!=='GET')return json({ok:false,error:'GET only'},405);
   const board=new URL(request.url).pathname.split('/').at(-1);
   if(!remainingBoardIds.includes(board))return json({ok:false,error:'Unknown board'},404);
   const page=board.slice(0,5),suffix=board.slice(6),sport=aliases[suffix]||suffix,path=sports[sport],sources=[];
   const read=async url=>{
     const data=await readJson(url,ctx,8*1024*1024);
-    sources.push({url,state:'current',fetched_at:Date.now()/1000});return data;
+    sources.push({url,state:data.__mcSource?.kind||'current',fetched_at:
+      data.__mcSource?.fetchedAt?Date.parse(data.__mcSource.fetchedAt)/1000:Date.now()/1000});return data;
   };
   try{
     const site='https://site.api.espn.com',root=site+'/apis/site/v2/sports/'+path;
