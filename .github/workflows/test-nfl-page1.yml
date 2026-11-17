@@ -1,0 +1,25 @@
+name: Verify NFL Page 1 Cloudflare live contract (no deploy)
+
+on:
+  push:
+    paths:
+      - cloud-28/nfl-page1-contract.mjs
+      - cloud-28/cloudflare-live-proxy.mjs
+      - cloud-28/tests/nfl-page1.test.mjs
+      - wrangler.jsonc
+      - .github/workflows/test-nfl-page1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify strict NFL Page 1 contract and existing API adapters
+        run: node --test cloud-28/tests/nfl-page1.test.mjs cloud-28/tests/worker-proxy.test.mjs cloud-28/tests/nfl-season-adapter.test.mjs
+      - name: Dry-run bundled Cloudflare Worker
+        run: npx --yes wrangler@4 deploy --dry-run --outdir ./_nfl-contract-bundle
