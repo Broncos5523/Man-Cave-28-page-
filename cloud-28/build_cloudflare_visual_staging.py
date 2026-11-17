@@ -59,7 +59,7 @@ def copy_approved_static_files():
     return count
 
 def board_manifest():
-    path=GOLD/"production"/"boards.json"
+    path=approved.APP/"production"/"boards.json"
     data=json.loads(path.read_text())
     boards=data.get("boards",[])
     ids=[v.get("id") for v in boards]
