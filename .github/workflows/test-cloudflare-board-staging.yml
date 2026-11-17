@@ -1,0 +1,47 @@
+name: Verify isolated 28-board Cloudflare visual staging (no deployment)
+
+on:
+  push:
+    paths:
+      - cloud-28/build_cloudflare_visual_staging.py
+      - .github/workflows/test-cloudflare-board-staging.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify approved original release
+        run: python cloud-28/prepare.py
+      - name: Build exact-byte art assets
+        run: python cloud-28/build_cloudflare_assets.py
+      - name: Export original 28-board visual staging
+        run: python cloud-28/build_cloudflare_visual_staging.py
+      - name: Verify all pages and Cloudflare limits
+        shell: bash
+        run: |
+          python - <<'PY'
+          import pathlib,json
+          out=pathlib.Path("cloud-28/cloudflare-static-dist")
+          status=json.loads((out/"staging/status.json").read_text())
+          assert status["boardCount"]==28
+          ids=status["ids"]
+          assert len(ids)==len(set(ids))==28
+          for bid in ids:
+              page=out/"staging/boards"/(bid+".html")
+              body=page.read_bytes()
+              assert b"<html" in body[:2500].lower(),bid
+              assert b"data:image/" not in body.lower(),bid
+              assert len(body)<25*1024*1024,(bid,len(body))
+          assert len(list((out/"cdn-inline").iterdir()))>=300
+          assert (out/"staging/index.html").is_file()
+          print("PASS_28_APPROVED_VISUAL_STAGING",len(ids),flush=True)
+          print("VISUAL_ONLY_NO_DATA_API_PARITY",flush=True)
+          PY
+      - name: Wrangler validation only (do not deploy)
+        run: npx --yes wrangler@4 deploy --dry-run --outdir ./_worker-dry-run
