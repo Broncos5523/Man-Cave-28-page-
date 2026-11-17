@@ -304,9 +304,13 @@ class Server(ThreadingHTTPServer):
     allow_reuse_address=True
 
 if __name__=="__main__":
-    server=Server(("0.0.0.0",int(os.environ.get("PORT","8767"))),Handler)
+    # Delivery-only optimization. The approved renderer, graphics and 28-page
+    # order remain unchanged; convert embedded data URLs into immutable assets.
+    from low_bandwidth_server import Handler as LowBandwidthHandler, prime_approved_assets
+    prime_approved_assets()
+    server=Server(("0.0.0.0",int(os.environ.get("PORT","8767"))),LowBandwidthHandler)
     server.born=time.monotonic()
-    print("Man Cave approved v8l player — cloud adapter ready",flush=True)
+    print("Man Cave approved v8l player — low-bandwidth cloud adapter ready",flush=True)
     try:server.serve_forever()
     except KeyboardInterrupt:pass
     finally:server.server_close()
