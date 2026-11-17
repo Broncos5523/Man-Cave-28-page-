@@ -16,7 +16,17 @@ from pathlib import Path
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit, unquote
 
-import server as approved
+import importlib.util
+import sys
+
+# Load cloud adapter under a unique name. The approved Gold Master has its own
+# module called "server"; importing cloud-28/server.py as "server" would shadow
+# that original module and create a circular import.
+_adapter_path=Path(__file__).with_name("server.py")
+_spec=importlib.util.spec_from_file_location("man_cave_cloud_adapter",_adapter_path)
+approved=importlib.util.module_from_spec(_spec)
+sys.modules[_spec.name]=approved
+_spec.loader.exec_module(approved)
 
 ORIGIN_ROOT = approved.original.GOLD
 ASSET_ROOT = Path(__file__).resolve().parent / "_inline_asset_cache"
