@@ -59,7 +59,18 @@ jobs:
           assert (root/"staging/tv3.html").is_file()
           tv3=(root/"staging/tv3-remote.js").read_text()
           assert "app.database().ref('screens/third').on('value'" in tv3
-          assert "frame.src=desired==='wrestling'?wrestlingUrl:'/staging/boards/'" in tv3
+          assert "frame.src=externalUrls[desired]||'/staging/boards/'" in tv3
+          assert "upcoming:'https://caveup.pages.dev/'" in tv3
+          assert "live:'https://testcave.pages.dev/'" in tv3
+          # Nested Fire TV Cloudflare player cannot resolve original
+          # window.top (GitHub Pages). Verify ONLY staging copies of the
+          # original readiness runtime use same-origin parent resolution.
+          nested=(root/"staging/board-runtime-ancestor.js").read_text()
+          assert "const host=(()=>{" in nested
+          assert "parent.__MC_PRODUCTION" in nested
+          assert "const host=window.top;" not in nested
+          assert b"/staging/board-runtime-ancestor.js" in (root/"staging/boards/page2_nfl.html").read_bytes()
+          assert b"/staging/board-runtime-ancestor.js" in (root/"hosted/page4_arizona_cfb/index.html").read_bytes()
           assert "/staging/tv3-remote.js" in (root/"staging/tv3.html").read_text()
           assert "window.__MC_TV3_STAGING_EVENTS__" in tv3
           assert "xhr.open('POST'" not in tv3
