@@ -141,7 +141,7 @@ def main():
                 # animation frames before announcing ready. No fake signal.
                 if b'/production/board-runtime.js' in data or b'__MC_PRODUCTION_BOARD' in data:
                     raise RuntimeError('Arizona nested lifecycle already present; review before exporting')
-                head=re.search(rb'<head\\b[^>]*>',data,re.I)
+                head=re.search(rb'<head\b[^>]*>',data,re.I)
                 if not head:
                     raise RuntimeError('Arizona nested app lacks expected head anchor')
                 bridge=(b'<script>window.__MC_PRODUCTION_BOARD="page4_arizona_cfb";</script>'
