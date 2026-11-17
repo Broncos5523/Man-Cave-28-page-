@@ -1,4 +1,4 @@
-"""Collect the seven original browser suites into one shareable staging report.
+"""Collect the eleven original browser suites into one shareable staging report.
 
 Called by the one-shot GitHub acceptance workflow, after all independent jobs.
 Only test observations are published; no private credentials or TV commands.
@@ -20,7 +20,7 @@ for group in sorted(root.glob("cloudflare-28-*-evidence")):
     observations = []
     errors = []
     for line in lines:
-        m = re.search(r"(BOARD_RENDER_RESULT|PAGE4_RENDER_RESULT|NATIVE_PAGE4_RESULT|BOARD_AUDIT|PASS_ORIGINAL_RENDERER)\s+(\{.*\})", line)
+        m = re.search(r"(BOARD_RENDER_RESULT|PAGE4_RENDER_RESULT|NATIVE_PAGE4_RESULT|BOARD_AUDIT|PASS_ORIGINAL_RENDERER|BATCH_PRIORITY_RESULT)\s+(\{.*\})", line)
         if m:
             try:
                 payload = json.loads(m.group(2))
@@ -35,6 +35,22 @@ for group in sorted(root.glob("cloudflare-28-*-evidence")):
         if "##[error]" in line or "Error:" in line or "failed" in line.lower():
             if len(errors) < 10:
                 errors.append(line[:300])
+    # The four originally certified boards use standalone browser tests
+    # with a named PASS marker rather than a JSON matrix artifact.
+    original = {
+        "nfl-page1": ("page1_nfl", "PASS_LIVE_NFL_PAGE1_CLOUDFLARE_BROWSER"),
+        "nfl-page2": ("page2_nfl", "PASS_CLOUDFLARE_LIVE_NFL_PAGE2_ORIGINAL_RENDERER"),
+        "nba-page1": ("page1_nba", "PASS_CLOUDFLARE_ORIGINAL_NBA_PAGE1_LIVE"),
+        "broncos-page4": ("page4_broncos", "PASS_REAL_BROWSER_BRONCOS_STAGING_DATA"),
+    }
+    if name in original:
+        board, marker = original[name]
+        passed = any(marker in line for line in lines)
+        board_results[board] = {
+            "pass": passed if lines else None,
+            "error": None if passed else "No completed live browser PASS marker; inspect browser log",
+            "test": name
+        }
     groups[name] = {"observations": observations, "errors": errors,
                     "logFound": bool(lines)}
     for matrix_name in ("remaining-render-matrix.json", "page4-render-matrix.json", "native-page4-matrix.json"):
