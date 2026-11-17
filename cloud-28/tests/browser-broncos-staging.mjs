@@ -1,6 +1,6 @@
 import {chromium} from 'playwright';
 
-const url='https://man-cave-28-page.broncos5523.workers.dev/staging/boards/page4_broncos.html?qa=broncos-browser-20261117-v3';
+const url='https://man-cave-28-page.broncos5523.workers.dev/staging/boards/page4_broncos.html?qa=broncos-browser-20261117-standalone-v4';
 const browser=await chromium.launch({headless:true});
 const page=await browser.newPage({viewport:{width:720,height:1280},deviceScaleFactor:1});
 const errors=[],responses=[],requests=[];
@@ -17,9 +17,13 @@ await page.route('**/*',route=>{
 try{
   const navigation=await page.goto(url,{waitUntil:'domcontentloaded',timeout:30000});
   console.log('BROWSER_NAV',navigation?.status(),url);
-  await page.waitForTimeout(18000);
+  await page.waitForTimeout(37000);
   const state=await page.evaluate(()=>({
     shim:window.__MC_CLOUDFLARE_PUBLIC_FEED_RELAY__||null,
+    standaloneHost:window.__MC_STAGING_HOST__||null,
+    originalState:!!window.MCSpotlightState?.peek,
+    storeReady:!!window.MCStore?.spots,
+    boardRuntime:!!window.MCBoard?.activate,
     actualURL:location.href,
     actualPath:location.pathname,
     fresh:document.querySelector('#fresh')?.textContent||null,
@@ -33,7 +37,7 @@ try{
   console.log('BROWSER_PROXY_REQUESTS',JSON.stringify(responses.slice(0,120)));
   console.log('BROWSER_CONSOLE_ERRORS',JSON.stringify(errors.slice(0,40)));
   console.log('BROWSER_FAILED_REQUESTS',JSON.stringify(requests.slice(0,35)));
-  if(!state.shim)throw Error('Staging shim not initialized: see console');
+  if(!state.shim||!state.standaloneHost||!state.originalState||!state.storeReady||!state.boardRuntime)throw Error('Original player state or Cloudflare shim not initialized: see console');
   if(!responses.some(x=>x.status===200 && x.url.includes('/migration-api/nfl/season-stats')))throw Error('No successful ESPN current-season player stats received in actual browser');
   if(state.ticker?.includes('Loading current NFL week'))throw Error('NFL week ticker still stuck loading');
   if(state.leaderCards?.every(card=>!/\d/.test(card)))throw Error('No numeric team leader values rendered');
