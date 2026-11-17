@@ -1,0 +1,45 @@
+name: Verify Cloudflare public-feed relay and 28-board staging (no deploy)
+
+on:
+  push:
+    paths:
+      - cloud-28/cloudflare-live-proxy.mjs
+      - cloud-28/cloudflare-public-feed-shim.js
+      - cloud-28/wrangler-live-relay-test.jsonc
+      - cloud-28/tests/worker-proxy.test.mjs
+      - cloud-28/build_cloudflare_visual_staging.py
+      - .github/workflows/test-cloudflare-live-relay.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 27
+    steps:
+      - uses: actions/checkout@v4
+      - name: Load SHA-verified unchanged Gold Master
+        run: python cloud-28/prepare.py
+      - name: Generate original visual staging and immutable artwork
+        run: python cloud-28/build_cloudflare_assets.py
+      - name: Verify all 28 staging pages include read-only shim once
+        shell: bash
+        run: |
+          python - <<'PY'
+          import pathlib,re,json
+          root=pathlib.Path("cloud-28/cloudflare-static-dist")
+          board_files=list((root/"staging/boards").glob("*.html"))
+          assert len(board_files)==28,len(board_files)
+          for p in board_files:
+              content=p.read_bytes()
+              assert content.count(b'<script src="/staging/espn-fetch-shim.js"></script>')==1,p
+              assert b"data:image/" not in content.lower(),p
+          shim=(root/"staging/espn-fetch-shim.js").read_text()
+          assert "window.fetch" in shim and "/proxy?url=" in shim
+          assert len(list((root/"cdn-inline").iterdir()))==316
+          print("PASS 28/28 unchanged Gold Master board staging copies load controlled public feed shim",flush=True)
+          PY
+      - name: Node tests for strict allowlist, no token forwarding and static fallback
+        run: node --test cloud-28/tests/worker-proxy.test.mjs
+      - name: Cloudflare Wrangler dry-run only (never deploy)
+        run: npx --yes wrangler@4 deploy --config cloud-28/wrangler-live-relay-test.jsonc --dry-run --outdir ./_migration-dry-run
