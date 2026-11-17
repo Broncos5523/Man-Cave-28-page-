@@ -22,11 +22,13 @@ try{
    await new Promise((resolve,reject)=>{
     const until=Date.now()+65000;
     const check=()=>{
+     try{
      if(board==='page4_bruins'){
       const club=data.find(d=>d.source.includes('/club-stats/BOS/now'))?.body;
       const real=data.find(d=>d.source.includes('/skater/realtime'))?.body;
       if(club&&real){
        if(String(club.season)!=='20262027'){reject(Error('NHL club season mismatch'));return;}
+       if(!Array.isArray(real.data)||!Array.isArray(club.skaters))throw Error('NHL skater/realtime source shape changed');
        const rt=new Map(real.data.map(p=>[p.playerId,p]));
        const rows=club.skaters.map(p=>({...p,...rt.get(p.playerId)}));
        const preferred={goals:8477956,assists:8477956,points:8477956,plusMinus:8478840,hits:8477507,penaltyMinutes:8479661};
@@ -63,6 +65,7 @@ try{
      }
      if(Date.now()>until){reject(Error('Native current-season source contract unavailable'));return;}
      setTimeout(check,250);
+     }catch(error){reject(error instanceof Error?error:Error(String(error)));}
     };check();
    });
    const frame=match();if(!frame)throw Error('Native embedded app not found');
