@@ -2,8 +2,13 @@ import {page4Teams,buildPage4,currentPlayerMap} from './page4-live-contract.mjs'
 import {contextOf} from './remaining-board-contracts.mjs';
 import {requireData as need} from './board-contract-common.mjs';
 export async function page4LiveApi(request,ctx,read){
-  const answer=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8',
-    'Cache-Control':status===200?'public, max-age=30':'no-store','X-Content-Type-Options':'nosniff'}});
+  const answer=(data,status=200)=>{
+    const checked=Date.parse(data.updatedAt||data.fetchedAt);
+    const ttl=Number.isFinite(checked)?Math.min(30,Math.floor(900-(Date.now()-checked)/1000)):30;
+    if(status===200&&ttl<=0)return answer({ok:false,error:'Verified player season source expired'},503);
+    return new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8',
+      'Cache-Control':status===200?'public, max-age='+ttl:'no-store','X-Content-Type-Options':'nosniff'}});
+  };
   if(request.method!=='GET')return answer({ok:false,error:'GET only'},405);
   const url=new URL(request.url),draft=url.pathname.endsWith('/draft-watch-stats'),board=url.searchParams.get('board');
   const config=draft?{league:'mens-college-basketball',team:'2305'}:page4Teams[board];

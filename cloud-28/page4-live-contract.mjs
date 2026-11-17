@@ -17,7 +17,7 @@ export function buildPage4(board,year,roster,stats,now=new Date()){
   need(Array.isArray(roster.athletes)&&roster.athletes.length>=10,'Incomplete current team roster');
   const players=roster.athletes.filter(p=>p.id&&p.displayName).map(p=>{
     let map=null;try{if(stats[String(p.id)])map=currentPlayerMap(stats[String(p.id)],year,String(p.id));}catch{}
-    return {id:String(p.id),name:p.displayName,pos:p.position?.abbreviation||'',headshot:p.headshot?.href||'',
+    return {id:String(p.id),name:p.displayName,pos:p.position?.abbreviation||'',jersey:p.jersey||'',headshot:p.headshot?.href||'',
       gamesPlayed:map?.gamesPlayed??null,stats:Object.fromEntries(Object.entries(fields).map(([label,key])=>
         [label,map?.gamesPlayed>0&&number(map[key])!==null?map[key]:null])),dataState:map?'current':'unavailable'};
   });
@@ -26,7 +26,7 @@ export function buildPage4(board,year,roster,stats,now=new Date()){
     const field=Object.keys(fields).find(f=>fields[f]===key),eligible=current.filter(p=>number(p.stats[field])!==null);
     need(eligible.length>0,'Current team leader unavailable for '+key);
     const winner=[...eligible].sort((a,b)=>b.stats[field]-a.stats[field])[0];
-    return {key,cat,unit,id:winner.id,name:winner.name,pos:winner.pos,value:winner.stats[field].toFixed(1)};
+    return {key,cat,unit,id:winner.id,name:winner.name,pos:winner.pos,jersey:winner.jersey,value:winner.stats[field].toFixed(1)};
   });
   const stamps=Object.values(stats).map(d=>d?.__mcSource?.fetchedAt).filter(Boolean).map(Date.parse);
   const updatedAt=stamps.length?new Date(Math.min(...stamps)).toISOString():now.toISOString();

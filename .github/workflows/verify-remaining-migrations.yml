@@ -11,6 +11,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  checks: read
 jobs:
   renderers:
     runs-on: ubuntu-latest
@@ -18,20 +19,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: node --test cloud-28/tests/*.test.mjs
-      - name: Wait for the matching Cloudflare build
-        run: |
-          python - <<'PY'
-          import json,time,urllib.request
-          u='https://man-cave-28-page.broncos5523.workers.dev/migration-api/health'
-          for attempt in range(30):
-            try:
-              req=urllib.request.Request(u,headers={'User-Agent':'ManCavePublicSportsDiagnostic/1.0','Accept':'application/json'})
-              with urllib.request.urlopen(req,timeout=20) as r:d=json.load(r)
-              if d.get('adapterRevision')=='remaining-r1':break
-            except Exception as e: print(type(e).__name__,str(e)[:150],flush=True)
-            time.sleep(10)
-          else:raise SystemExit('Matching deployment not verified')
-          PY
+      - name: Wait for this exact commit to finish deploying
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python cloud-28/tests/wait-cloudflare-deployment.py
       - name: Install browser
         run: |
           npm install --no-save playwright

@@ -10,6 +10,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  checks: read
 jobs:
   contracts:
     runs-on: ubuntu-latest
@@ -27,6 +28,10 @@ jobs:
     needs: contracts
     steps:
       - uses: actions/checkout@v4
+      - name: Wait for this exact commit to finish deploying
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python cloud-28/tests/wait-cloudflare-deployment.py
       - name: Wait for existing Cloudflare Git build
         run: python cloud-28/tests/public-priority-migrations.py
       - name: Install browser for original board verification

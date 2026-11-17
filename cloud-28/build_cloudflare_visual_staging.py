@@ -116,6 +116,20 @@ def main():
     threading.Thread(target=server.serve_forever,daemon=True).start()
     base="http://127.0.0.1:"+str(server.server_port)
     try:
+        # The Arizona football page is a nested app. Export its original HTTP
+        # lifecycle adapters too; raw files omit the rotation bridge. Cloudflare
+        # canonicalizes index.html to a directory URL, so adapt that route only.
+        for rel in (
+            'hosted/page4_arizona_cfb/index.html',
+            'hosted/page4_arizona_cfb/_assets/index-BpJce90E.js',
+            'hosted/page4_arizona_cfb/_assets/arizona-football-page4-CtvpXjud.js',
+        ):
+            data=request(base,'/'+rel)
+            if rel.endswith('index-BpJce90E.js'):
+                old=b'"/hosted/page4_arizona_cfb/index.html"'
+                if data.count(old)!=1:raise RuntimeError('Arizona nested app route changed')
+                data=data.replace(old,b'"/hosted/page4_arizona_cfb/"',1)
+            save_binary(OUT/rel,data)
         for bid in ids:
             response=request(base,"/production/board/"+bid)
             if bid=="page1_cbb":

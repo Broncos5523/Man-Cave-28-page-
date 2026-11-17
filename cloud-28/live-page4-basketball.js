@@ -4,8 +4,9 @@
 (()=>{
 'use strict';
 const board=window.__MC_PRODUCTION_BOARD;
-if(board!=='page4_celtics' && board!=='page4_arizona_cbb')return;
-const apply=()=>board==='page4_celtics'?window.__MC_NBA_P4_APPLY__:window.__MC_CBB_P4_APPLY__;
+if(!['page4_celtics','page4_arizona_cbb','page4_fever'].includes(board))return;
+const apply=()=>board==='page4_celtics'?window.__MC_NBA_P4_APPLY__:
+  board==='page4_fever'?window.__MC_FEV_P4_APPLY__:window.__MC_CBB_P4_APPLY__;
 const state={board,lastAttempt:null,lastSuccess:null,lastError:null,season:null,verifiedPlayers:0};
 window.__MC_PAGE4_LIVE_STATUS__=state;
 let fetching=false,hadGood=false;
@@ -22,9 +23,10 @@ function update(){
    if(!r.ok)throw Error('ESPN current-season feed HTTP '+r.status);
    return r.json();
  }).then(data=>{
-   if(data.season<2027||!Array.isArray(data.roster)||data.roster.length<10||
+   const minimumSeason=board==='page4_fever'?2026:2027;
+   if(data.board!==board||data.season<minimumSeason||!Array.isArray(data.roster)||data.roster.length<10||
       !Array.isArray(data.leaders)||data.leaders.length!==6||data.verifiedPlayers<3)
-     throw Error('Incomplete verified 2026–27 data');
+     throw Error('Incomplete verified current-season data');
    const callback=apply();
    if(typeof callback!=='function')throw Error('Page 4 live binding not installed');
    callback(data);

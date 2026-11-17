@@ -1,0 +1,39 @@
+name: Verify original Cloudflare player boards
+on:
+  push:
+    branches: [main]
+    paths:
+      - cloud-28/page4*
+      - cloud-28/live-page4-basketball.js
+      - cloud-28/core-season-cache.mjs
+      - cloud-28/cloudflare-live-proxy.mjs
+      - cloud-28/tests/browser-page4-migrations.mjs
+      - .github/workflows/verify-page4-migrations.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  checks: read
+jobs:
+  players:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - run: node --test cloud-28/tests/*.test.mjs
+      - name: Wait for this exact commit to finish deploying
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python cloud-28/tests/wait-cloudflare-deployment.py
+      - name: Install browser
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Compare original player cards and rotation with season feed
+        run: node cloud-28/tests/browser-page4-migrations.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: original-player-board-evidence
+          path: |
+            page4-render-matrix.json
+            *-players.png

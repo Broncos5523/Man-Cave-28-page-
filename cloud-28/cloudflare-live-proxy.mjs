@@ -371,7 +371,7 @@ async function cachedBoard(request,ctx,handler){
   if(request.method!=='GET')return handler(request,ctx);
   const cache=typeof caches!=='undefined'?caches.default:null;
   if(!cache)return handler(request,ctx);
-  const key=new Request('https://man-cave-board-cache.invalid/remaining-r1'+new URL(request.url).pathname);
+  const key=new Request('https://man-cave-board-cache.invalid/remaining-r2'+new URL(request.url).pathname);
   const saved=await cache.match(key);if(saved)return saved;
   const id=key.url;
   if(pendingBoards.has(id))return (await pendingBoards.get(id)).clone();
@@ -403,7 +403,7 @@ export default {
     if(path==="/migration-api/health") return json({
       ok:true,mode:"Cloudflare v8l API migration",
       publicEspnRelay:"enabled",boardApi:"ALL PAGE 1–3 ROUTES IMPLEMENTED; VERIFICATION IN PROGRESS",firebaseTV:"NOT SWITCHED",
-      adapterRevision:'remaining-r1',
+      adapterRevision:'remaining-r2',
       liveStatistics:"requires per-board verification"
     });
     // All other paths are static and should bypass the Worker in production.
