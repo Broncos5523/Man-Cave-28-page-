@@ -25,7 +25,11 @@ for(var i=0;i<groups.length;i++)for(var j=0;j<groups[i].length;j++)valid[groups[
 var desired=null,held='',frame=null,missingLogged=false,hasFirstCommand=false,geometryReported='';
 // The approved wrestling player is already portrait 9:16 and has its own
 // rotation. Keep its inner rotation OFF; the existing Onn outer stage handles it.
-var wrestlingUrl='https://broncos5523.github.io/Inside-the-squared-circle/staging/?view=tv&mode=active&rotate=none';
+var externalUrls={
+ wrestling:'https://broncos5523.github.io/Inside-the-squared-circle/staging/?view=tv&mode=active&rotate=none',
+ upcoming:'https://caveup.pages.dev/',
+ live:'https://testcave.pages.dev/'
+};
 function report(event,detail){
  try{
   var xhr=new XMLHttpRequest();
@@ -46,7 +50,7 @@ function reconcile(){
   if(frame&&frame.parentNode)frame.parentNode.removeChild(frame);
   frame=null;held='';geometryReported='';return;
  }
- if(desired!=='wrestling'&&!valid[desired])return;
+ if(!externalUrls[desired]&&!valid[desired])return;
  var stage=getStage();
  if(!stage){
   if(!missingLogged){report('stage-not-ready',desired);missingLogged=true;}
@@ -85,12 +89,14 @@ function reconcile(){
  }
  if(held!==desired){
   held=desired;
-  frame.src=desired==='wrestling'?wrestlingUrl:'/production/board/'+encodeURIComponent(desired)+'?tv3=hold';
+  frame.src=externalUrls[desired]||'/production/board/'+encodeURIComponent(desired)+'?tv3=hold';
   report('board-command-applied',desired);
  }
 }
 function receive(value){
- var newMode=(value&&value.type==='wrestling')?'wrestling':(value&&value.type==='board'&&valid[value.board])?value.board:'rotation';
+ var type=value&&value.type;
+ var newMode=(type==='wrestling'||type==='upcoming'||type==='live')?type:
+  (type==='board'&&valid[value.board])?value.board:'rotation';
  if(desired===newMode)return;
  desired=newMode;
  report('command-received',newMode);
