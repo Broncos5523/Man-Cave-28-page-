@@ -6,8 +6,9 @@ const browser=await chromium.launch({headless:true}),context=await browser.newCo
 const results=[];
 try{
   for(const board of remainingBoardIds){
-    const page=await context.newPage(),errors=[];
+    const page=await context.newPage(),errors=[],responses=[];
     page.on('pageerror',e=>errors.push(String(e.message||e)));
+    page.on('response',async r=>{if(r.url().includes('/api/board/'+board))responses.push({status:r.status(),body:r.ok()?'current JSON':(await r.text().catch(()=>'' )).slice(0,600)})});
     const result={board,pass:false};
     try{
       const response=await page.goto(host+'/staging/boards/'+board+'.html?migration=remaining-r1',{waitUntil:'domcontentloaded',timeout:45000});
@@ -46,7 +47,14 @@ try{
       }
       if(board==='page1_cfb'&&JSON.stringify(result.apNames)!==JSON.stringify(result.expectedAP))throw Error('Displayed AP teams differ from verified feed');
       result.pass=true;
-    }catch(e){result.error=e.message;result.jsErrors=errors;}
+    }catch(e){result.error=e.message;result.jsErrors=errors;result.responses=responses;
+      result.diagnostic=await page.evaluate(id=>{
+        let feed=null;try{feed=JSON.parse(localStorage.getItem('mc-v2-feed-'+id))}catch{}
+        return {ready:!!window.MCBoard?.ready,feedState:feed?.dataState,players:feed?.leaders?.players,snapshot:feed?.teamPanels?.snapshot,
+          domPlayers:[...document.querySelectorAll('[data-athlete-id]')].map(c=>({id:c.dataset.athleteId,name:c.querySelector('.leader-name,h3')?.textContent,value:c.querySelector('.leader-stat strong,.value')?.textContent})),
+          domStats:[...document.querySelectorAll('#teamstats .rank,#offense .rank,#defense .rank')].map(c=>c.textContent)};
+      },board).catch(()=>null);
+    }
     await page.screenshot({path:board+'-render.png',fullPage:true}).catch(()=>{});
     results.push(result);console.log('BOARD_RENDER_RESULT',JSON.stringify(result));
     await page.close();

@@ -8,6 +8,7 @@ on:
       - cloud-28/core-season-cache.mjs
       - cloud-28/cloudflare-live-proxy.mjs
       - cloud-28/tests/browser-page4-migrations.mjs
+      - cloud-28/tests/browser-native-page4.mjs
       - .github/workflows/verify-page4-migrations.yml
   workflow_dispatch:
 permissions:
@@ -30,6 +31,9 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Compare original player cards and rotation with season feed
         run: node cloud-28/tests/browser-page4-migrations.mjs
+      - name: Compare original NHL, MLB and football native cards with their sources
+        if: always()
+        run: node cloud-28/tests/browser-native-page4.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -37,3 +41,5 @@ jobs:
           path: |
             page4-render-matrix.json
             *-players.png
+            native-page4-matrix.json
+            *-native.png

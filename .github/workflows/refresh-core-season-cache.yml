@@ -4,6 +4,9 @@ on:
     branches: [main]
     paths:
       - cloud-28/refresh-core-season-cache.py
+      - cloud-28/core-season-cache.mjs
+      - cloud-28/cloudflare-live-proxy.mjs
+      - cloud-28/page4*.mjs
       - .github/workflows/refresh-core-season-cache.yml
   schedule:
     - cron: '*/5 * * * *'

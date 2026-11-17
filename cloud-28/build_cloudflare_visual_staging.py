@@ -14,6 +14,7 @@ import shutil
 import threading
 import time
 import cbb_tournament_view
+import page4_patch
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
@@ -132,6 +133,10 @@ def main():
             save_binary(OUT/rel,data)
         for bid in ids:
             response=request(base,"/production/board/"+bid)
+            if bid=='page4_fever':
+                # Render's existing Python API supports two basketball boards;
+                # apply the third binding only in the Cloudflare staging export.
+                response=page4_patch.patch_html(bid,response.decode()).encode()
             if bid=="page1_cbb":
                 # Render added a 2027 snapshot-only display override. The
                 # Cloudflare port must allow the untouched v8l data renderer to

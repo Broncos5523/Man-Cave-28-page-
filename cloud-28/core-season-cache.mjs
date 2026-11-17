@@ -5,6 +5,10 @@ let saved=null,pending=null,checkedAt=0;
 export function coreKey(url){
   const u=new URL(url);
   if(u.hostname!=='sports.core.api.espn.com')return null;
+  // The locked Arizona football renderer also reads these exact Core leader
+  // and seasonal-identity contracts. No generic Core endpoint is relayed here.
+  if(/^\/v2\/sports\/football\/leagues\/college-football\/seasons\/20\d{2}\/(?:types\/2\/teams\/12\/leaders|athletes\/\d+)\/?$/.test(u.pathname))
+    return u.pathname.replace(/\/$/,'');
   const match=/^\/v2\/sports\/(basketball|football)\/leagues\/(nba|wnba|mens-college-basketball|college-football)\/seasons\/(20\d{2})\/types\/2\/(teams|athletes)\/(\d+)\/statistics(?:\/0)?\/?$/.exec(u.pathname);
   if(!match)return null;
   return u.pathname.replace(/\/$/,'').replace(/\/statistics(?:\/0)?$/,'/statistics'+(match[4]==='athletes'?'/0':''));
@@ -14,13 +18,24 @@ export function validatedCoreEntry(dataset,key,now=Date.now()){
   const entry=dataset.entries?.[key],stamp=Date.parse(entry?.fetchedAt),age=now-stamp;
   if(!Number.isFinite(stamp)||age< -60000||age>900000)throw Error('Season cache expired');
   const year=/\/seasons\/(\d{4})\//.exec(key)?.[1],data=entry.data;
-  if(!year||!String(data?.seasonType?.$ref||'').includes('/seasons/'+year+'/types/2?')||
+  const stats=key.includes('/statistics');
+  if(!year||(stats&&(!String(data?.seasonType?.$ref||'').includes('/seasons/'+year+'/types/2?')||
      !String(data?.season?.$ref||'').includes('/seasons/'+year+'?')||!Array.isArray(data?.splits?.categories))
+    ))
     throw Error('Season cache year/type contract mismatch');
   const own=coreKey(entry.sourceUrl);
   if(own!==key)throw Error('Season cache identity mismatch');
   const identity=new URL(data.$ref);identity.hostname='sports.core.api.espn.com';
   if(coreKey(identity.toString())!==key)throw Error('Season cache subject mismatch');
+  if(key.endsWith('/leaders')){
+    const names=new Set((data.categories||[]).filter(c=>c.leaders?.some(p=>typeof p.value==='number'&&Number.isFinite(p.value)&&
+      String(p.athlete?.$ref||'').includes('/seasons/'+year+'/athletes/'))).map(c=>c.name));
+    if(!['passingLeader','rushingLeader','receivingLeader','totalTackles','sacks','interceptions'].every(n=>names.has(n)))
+      throw Error('Season team leader contract incomplete');
+  }else if(!stats){
+    if(!key.endsWith('/athletes/'+data.id)||!data.displayName||
+      !String(data.team?.$ref||'').includes('/seasons/'+year+'/teams/12?'))throw Error('Season athlete identity/team incomplete');
+  }
   return {...data,__mcSource:{kind:'verified-public-season-cache',fetchedAt:entry.fetchedAt,maxAgeSeconds:900}};
 }
 async function dataset(){

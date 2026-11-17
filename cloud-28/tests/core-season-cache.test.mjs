@@ -25,3 +25,16 @@ test('Expired, future, wrong-year, wrong-subject or unverified cache entries fai
     d=>d.schema=2
   ]){const f=fixture();mutate(f);assert.throws(()=>validatedCoreEntry(f,key,now));}
 });
+test('Arizona Core leaders and athlete identity keep their original season-specific contracts',()=>{
+  const root='https://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026';
+  const sourceUrl=root+'/types/2/teams/12/leaders',idUrl=root+'/athletes/4801717';
+  const data={$ref:sourceUrl+'?lang=en',categories:['passingLeader','rushingLeader','receivingLeader','totalTackles','sacks','interceptions'].map(name=>
+    ({name,leaders:[{value:3150,athlete:{$ref:idUrl+'?lang=en'}}]}))};
+  const dataset={schema:1,entries:{[coreKey(sourceUrl)]:{sourceUrl,fetchedAt:'2026-11-17T16:55:00Z',data}}};
+  assert.equal(validatedCoreEntry(dataset,coreKey(sourceUrl),now).categories[0].leaders[0].value,3150);
+  assert.equal(coreKey(sourceUrl.replace('/teams/12/','/teams/1/')),null);
+  const athlete={$ref:idUrl+'?lang=en',id:'4801717',displayName:'Noah Fifita',team:{$ref:root+'/teams/12?lang=en'}};
+  dataset.entries[coreKey(idUrl)]={sourceUrl:idUrl,fetchedAt:'2026-11-17T16:55:00Z',data:athlete};
+  assert.equal(validatedCoreEntry(dataset,coreKey(idUrl),now).displayName,'Noah Fifita');
+  athlete.team.$ref=root+'/teams/1?lang=en';assert.throws(()=>validatedCoreEntry(dataset,coreKey(idUrl),now));
+});

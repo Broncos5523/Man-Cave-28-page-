@@ -130,12 +130,24 @@ async function relay(request,ctx,jsonCap=5*1024*1024,cacheable=true) {
   let upstream;
   try {
     // Public feeds only. Never send incoming Authorization, Cookie or Xfinity data.
-    upstream=await fetch(target.toString(),{
+    const options={
       method:"GET",redirect:"manual",
       headers:{"Accept":IMAGE_HOSTS.has(target.hostname)?"image/avif,image/webp,image/*;q=0.8,*/*;q=0.5":"application/json, text/plain;q=0.9",
         "User-Agent":"ManCaveSportsBook-v8l"},
       signal:AbortSignal.timeout(13000)
-    });
+    };
+    upstream=await fetch(target.toString(),options);
+    // NHL's documented /now resources redirect to their dated official JSON.
+    // Permit exactly one HTTPS redirect within that same approved host and
+    // resource. The public relay still rejects unrelated/credentialed targets.
+    if([301,302,303,307,308].includes(upstream.status)&&target.hostname==='api-web.nhle.com'){
+      const next=validExternal(new URL(upstream.headers.get('Location')||'',target).toString());
+      const current=/^\/v1\/(club-stats|club-schedule-season)\/([A-Z]{3})\/now$/.exec(target.pathname);
+      const expected=current?new RegExp('^/v1/'+current[1]+'/'+current[2]+'/20\\d{2}20\\d{2}'+(current[1]==='club-stats'?'/2':'')+'$'):
+        target.pathname==='/v1/standings/now'?/^\/v1\/standings\/20\d{2}-\d{2}-\d{2}$/:null;
+      if(next.hostname===target.hostname&&expected?.test(next.pathname)&&!next.search)
+        upstream=await fetch(next.toString(),{...options,signal:AbortSignal.timeout(13000)});
+    }
   } catch(e) {
     if(target.hostname==='sports.core.api.espn.com'){
       const cached=await currentCoreFallback(target.toString());if(cached)return cached;

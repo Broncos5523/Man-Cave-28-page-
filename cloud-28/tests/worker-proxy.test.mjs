@@ -21,6 +21,21 @@ test("public sports hosts accepted; scoreboard TTL stays short",()=>{
   assert.equal(u.hostname,"site.api.espn.com");
   assert.equal(ttlFor(u),35);
 });
+test('NHL now endpoints follow exactly one same-resource official dated JSON redirect',async()=>{
+  const native=globalThis.fetch,calls=[];
+  globalThis.fetch=async url=>{calls.push(url);return calls.length===1?
+    new Response(null,{status:307,headers:{Location:'https://api-web.nhle.com/v1/club-stats/BOS/20262027/2'}}):
+    new Response(JSON.stringify({season:20262027,skaters:[{playerId:8477956,goals:9}]}),{headers:{'Content-Type':'application/json'}});};
+  try{
+    const out=await app.fetch(new Request(host+'/proxy?url='+encodeURIComponent('https://api-web.nhle.com/v1/club-stats/BOS/now')),{},null);
+    assert.equal(out.status,200);assert.equal((await out.json()).skaters[0].goals,9);assert.equal(calls.length,2);
+    for(const bad of ['https://127.0.0.1/private','https://api-web.nhle.com/v1/club-stats/TOR/20262027/2','https://api-web.nhle.com/v1/unrelated']){
+      calls.length=0;globalThis.fetch=async url=>{calls.push(url);return new Response(null,{status:307,headers:{Location:bad}})};
+      const denied=await app.fetch(new Request(host+'/proxy?url='+encodeURIComponent('https://api-web.nhle.com/v1/club-stats/BOS/now')),{},null);
+      assert.ok(denied.status>=400);assert.equal(calls.length,1);
+    }
+  }finally{globalThis.fetch=native;}
+});
 test("read-only Cloudflare relay delivers ESPN JSON and strips incoming secrets",async()=>{
   const native=globalThis.fetch;
   let called;

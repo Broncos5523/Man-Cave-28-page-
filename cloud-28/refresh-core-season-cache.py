@@ -72,6 +72,26 @@ def collect(item):
         return None
 with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool:
     entries=dict(x for x in pool.map(collect,jobs.items()) if x)
+# Preserve the Arizona native team's exact leader and seasonal identity JSON.
+# These cannot be replaced with career totals or guessed player selections.
+cfb_root=BASE+'football/leagues/college-football/seasons/'+str(seasons['college-football'])
+leader_url=cfb_root+'/types/2/teams/12/leaders?lang=en&region=us'
+try:
+    leaders=read(leader_url)
+    if urllib.parse.urlsplit(leaders.get('$ref','')).path!=urllib.parse.urlsplit(leader_url).path:raise ValueError('CFB leader subject mismatch')
+    categories=leaders.get('categories',[])
+    if not {'passingLeader','rushingLeader','receivingLeader','totalTackles','sacks','interceptions'}<=set(c.get('name') for c in categories):raise ValueError('CFB leader categories missing')
+    def save_public(url,data):
+        entries[urllib.parse.urlsplit(url).path]={'sourceUrl':url,'fetchedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'data':data}
+    save_public(leader_url,leaders)
+    refs={p['athlete']['$ref'].replace('http:','https:',1) for c in categories for p in c.get('leaders',[])[:1] if p.get('athlete',{}).get('$ref')}
+    for url in refs:
+        if not url.startswith(cfb_root+'/athletes/'):raise ValueError('CFB leader athlete year mismatch')
+        data=read(url)
+        if urllib.parse.urlsplit(data.get('$ref','')).path!=urllib.parse.urlsplit(url).path:raise ValueError('CFB athlete subject mismatch')
+        if '/seasons/'+str(seasons['college-football'])+'/teams/12?' not in data.get('team',{}).get('$ref',''):raise ValueError('CFB leader team mismatch')
+        save_public(url,{k:data[k] for k in ('$ref','id','displayName','position','team','jersey','headshot') if k in data})
+except Exception as exc:print('CFB_TEAM_LEADERS_NOT_VERIFIED',type(exc).__name__,str(exc)[:140],flush=True)
 team_count=sum('/teams/' in k for k in entries)
 missing=required_teams-set(entries)
 if missing:raise SystemExit('Current NBA/WNBA advanced-stat cache incomplete; refusing publication: '+str(sorted(missing)[:3]))
