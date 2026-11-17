@@ -36,4 +36,17 @@ jobs:
           for idx,line in enumerate(text.splitlines()):
               if re.search(r'board-runtime|\.attach\(|\.peek\(|MCBoard|DataBridge',line,re.I):
                   print("BOARD_DEP",idx+1,line[:430],flush=True)
+          print("=== SEARCH ORIGINAL PARENT STATE MANAGER ===",flush=True)
+          for p in sorted(root.rglob("*.js")):
+              if not p.is_file() or p.stat().st_size>800000:continue
+              source=p.read_text(errors="replace")
+              if "MCSpotlightState" not in source and "MCStore" not in source:continue
+              print("PARENT_FILE",p.relative_to(root),p.stat().st_size,flush=True)
+              rows=source.splitlines()
+              indexes=[i for i,line in enumerate(rows) if "MCSpotlightState" in line or "MCStore" in line or "const store=" in line]
+              spans=set()
+              for ix in indexes[:18]:
+                  for i in range(max(0,ix-10),min(len(rows),ix+30)):spans.add(i)
+              for i in sorted(spans):
+                  print("PARENT_CODE",p.name,i+1,rows[i][:350],flush=True)
           PY
