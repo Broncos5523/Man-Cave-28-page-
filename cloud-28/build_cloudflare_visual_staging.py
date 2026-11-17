@@ -121,11 +121,20 @@ def main():
             match=re.search(rb"<head\b[^>]*>",response,flags=re.I)
             if not match:
                 raise RuntimeError("Approved board head insertion point missing: "+bid)
-            shim=b'<script src="/staging/espn-fetch-shim.js"></script>'
-            if shim in response:
+            # These are supporting STAGING scripts, never Gold Master edits.
+            # Original spotlight-state module is loaded before the board runtime
+            # so the existing seven-second activation and resume logic work.
+            scripts=(
+                b'<script src="/production/spotlight-state.js"></script>'
+                b'<script src="/staging/board-standalone-host.js?v=standalone-r1"></script>'
+                b'<script src="/staging/espn-fetch-shim.js?v=preproxied-r3"></script>'
+            )
+            if b'/staging/espn-fetch-shim.js' in response:
                 raise RuntimeError("Duplicate Cloudflare preview shim: "+bid)
-            response=response[:match.end()]+shim+response[match.end():]
+            response=response[:match.end()]+scripts+response[match.end():]
             save_binary(STAGE/"boards"/(bid+".html"),response)
+        save_binary(OUT/"production"/"spotlight-state.js",(approved.APP/"production"/"spotlight-state.js").read_bytes())
+        save_binary(STAGE/"board-standalone-host.js",(HERE/"cloudflare-standalone-board-host.js").read_bytes())
         save_binary(STAGE/"espn-fetch-shim.js",(HERE/"cloudflare-public-feed-shim.js").read_bytes())
         save_binary(STAGE/"index.html",make_index(boards))
         # Preserve versioned Gold Master scripts and cloud adapter runtime
