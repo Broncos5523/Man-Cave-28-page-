@@ -28,6 +28,13 @@ jobs:
           server.born=time.monotonic()
           threading.Thread(target=server.serve_forever,daemon=True).start()
           base='http://127.0.0.1:'+str(server.server_port)
+          print('=== ORIGINAL ROOT BROWSER JS MODULES ===',flush=True)
+          gold=low.approved.original.GOLD
+          for file in sorted(gold.iterdir()):
+              if file.is_file() and file.suffix.lower() in ('.js','.mjs','.css','.json'):
+                  print('ROOT_FILE',file.name,file.stat().st_size,flush=True)
+          for file in sorted(gold.rglob('*.mjs')):
+              print('MODULE',file.relative_to(gold),file.stat().st_size,flush=True)
           try:
             for bid in ['page1_nfl','page2_nfl','page2_nhl','page2_mlb','page2_wnba','page2_cfb','page3_broncos']:
               with urlopen(base+'/production/board/'+bid,timeout=20) as r:
