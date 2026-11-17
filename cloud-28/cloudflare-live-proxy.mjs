@@ -20,7 +20,7 @@ const json=(value,status=200)=>new Response(JSON.stringify(value),{status,header
 
 function ttlFor(url) {
   if(IMAGE_HOSTS.has(url.hostname)) return 86400;
-  if(/\/statistics(?:\/|$)/.test(url.pathname)||/\/athletes(?:\/|$)/.test(url.pathname))return 240;
+  if(/\/statistics(?:\/|$)/.test(url.pathname)||/\/stats(?:\/|$)/.test(url.pathname)||/\/athletes(?:\/|$)/.test(url.pathname))return 240;
   if(/\/scoreboard/.test(url.pathname)||/\/summary/.test(url.pathname))return 35;
   return 60;
 }
@@ -33,6 +33,70 @@ function validExternal(raw) {
   if(u.hash) u.hash="";
   return u;
 }
+
+/*
+ * Read-only NFL Page4 compatibility response.
+ * Core API is HTTP 403 from Cloudflare. The official ESPN Site API is reachable,
+ * but includes career "totals"; NEVER use those. Select an explicit year + team
+ * row from categories[].statistics[] and preserve the original Core season/type
+ * reference so the approved page's existing validity checks still run.
+ */
+function seasonStatsFromSite(data,season,athlete,team="7") {
+  if(!data||!Array.isArray(data.categories))throw Error("ESPN athlete statistics missing categories");
+  const categories=[],selectedYears=new Set();
+  for(const category of data.categories) {
+    if(!category||!Array.isArray(category.statistics)||!Array.isArray(category.names))continue;
+    const matches=category.statistics.filter(row=>Number(row?.season?.year)===season&&String(row?.teamId||"")===team);
+    const entry=matches[0];
+    if(!entry||!Array.isArray(entry.stats))continue;
+    selectedYears.add(Number(entry.season.year));
+    const stats=[];
+    for(let i=0;i<Math.min(category.names.length,entry.stats.length);i++) {
+      const name=category.names[i],raw=entry.stats[i];
+      if(typeof name!=="string"||!name)continue;
+      const number=Number(String(raw??"").replace(/[, %]/g,""));
+      if(!Number.isFinite(number))continue;
+      stats.push({name,value:number,displayValue:String(raw)});
+    }
+    if(stats.length)categories.push({name:String(category.name||""),stats});
+  }
+  if(!categories.length||selectedYears.size!==1||!selectedYears.has(season))
+    throw Error("No verified current-year regular-season Denver player statistics");
+  const ref="https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/"+season+"/types/2/athletes/"+athlete+"/statistics/0?lang=en&region=us";
+  return {
+    $ref:ref,
+    season:{$ref:"https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/"+season+"?lang=en&region=us",year:season},
+    seasonType:{$ref:"https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/"+season+"/types/2?lang=en&region=us"},
+    splits:{id:"0",name:"Regular Season",categories},
+    dataSource:"ESPN site common v3 individual season-by-year records (NOT career totals)"
+  };
+}
+async function verifiedNflSeasonStats(request,ctx) {
+  if(request.method!=="GET")return json({ok:false,error:"GET only"},405);
+  const qs=new URL(request.url).searchParams;
+  const year=qs.get("season"),athlete=qs.get("athlete"),team=qs.get("team")||"7";
+  if(!/^20(2[4-9]|3[0-5])$/.test(year||"")||!/^\d{5,10}$/.test(athlete||"")||team!=="7")
+    return json({ok:false,error:"Only verified Denver regular-season athlete requests are supported"},400);
+  const season=Number(year);
+  const target="https://site.api.espn.com/apis/common/v3/sports/football/nfl/athletes/"+athlete+"/stats?season="+season+"&seasontype=2";
+  // Reuse the existing strict host validator, size cap, and edge caching.
+  const proxyRequest=new Request("https://man-cave-relay.invalid/proxy?url="+encodeURIComponent(target));
+  const upstream=await relay(proxyRequest,ctx);
+  if(!upstream.ok)return json({ok:false,error:"Public player statistics temporarily unavailable"},503);
+  try {
+    const raw=await upstream.json();
+    const verified=seasonStatsFromSite(raw,season,athlete,team);
+    return new Response(JSON.stringify(verified),{status:200,headers:{
+      "Content-Type":"application/json; charset=utf-8",
+      "Cache-Control":"public, max-age=180",
+      "X-Content-Type-Options":"nosniff",
+      "X-Man-Cave-Data-Source":"espn-site-season-row"
+    }});
+  }catch(e){
+    return json({ok:false,error:"Player season validation failed; no career totals substituted"},503);
+  }
+}
+
 async function relay(request,ctx) {
   if(request.method!=="GET") return json({ok:false,error:"GET only"},405);
   const src=new URL(request.url).searchParams.get("url");
@@ -92,6 +156,7 @@ export default {
   async fetch(request,env,ctx) {
     const path=new URL(request.url).pathname;
     if(path==="/proxy")return relay(request,ctx);
+    if(path==="/migration-api/nfl/season-stats")return verifiedNflSeasonStats(request,ctx);
     if(path==="/migration-api/health") return json({
       ok:true,mode:"Cloudflare v8l API migration",
       publicEspnRelay:"enabled",boardApi:"NOT PORTED",firebaseTV:"NOT SWITCHED",
@@ -102,4 +167,4 @@ export default {
     return json({ok:false,error:"Static asset binding unavailable"},503);
   }
 };
-export {validExternal,ttlFor};
+export {validExternal,ttlFor,seasonStatsFromSite};
