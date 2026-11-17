@@ -1,16 +1,507 @@
 {
-  "checkedAt": "2026-11-17T18:35:30.623664+00:00",
-  "sourceCommit": "039cc931d9ea9b00651cb3a68e1c74029aa3553e",
+  "checkedAt": "2026-11-17T18:40:37.563694+00:00",
+  "sourceCommit": "0bdcfb27784673a8c40c5bb23b6c71e9e94f02b5",
   "description": "Automated staging validation only; physical Onn receiver not verified",
   "gates": {
     "contracts": "success",
     "publicCoreSource": "success",
-    "exactStagingDeployment": "cancelled",
-    "browserSuites": "cancelled"
+    "exactStagingDeployment": "success",
+    "browserSuites": "success"
   },
-  "automatedStagingPassed": false,
-  "boardResults": {},
-  "suites": {},
+  "automatedStagingPassed": true,
+  "boardResults": {
+    "page4_celtics": {
+      "pass": true,
+      "error": null,
+      "test": "basketball-player-pages"
+    },
+    "page4_arizona_cbb": {
+      "pass": true,
+      "error": null,
+      "test": "basketball-player-pages"
+    },
+    "page4_fever": {
+      "pass": true,
+      "error": null,
+      "test": "basketball-player-pages"
+    },
+    "page4_broncos": {
+      "pass": true,
+      "error": null,
+      "test": "broncos-page4"
+    },
+    "page4_bruins": {
+      "pass": true,
+      "error": null,
+      "test": "native-player-pages"
+    },
+    "page4_redsox": {
+      "pass": true,
+      "error": null,
+      "test": "native-player-pages"
+    },
+    "page4_arizona_cfb": {
+      "pass": true,
+      "error": null,
+      "test": "native-player-pages"
+    },
+    "page1_nba": {
+      "pass": true,
+      "error": null,
+      "test": "nba-page1"
+    },
+    "page1_nfl": {
+      "pass": true,
+      "error": null,
+      "test": "nfl-page1"
+    },
+    "page2_nfl": {
+      "pass": true,
+      "error": null,
+      "test": "nfl-page2"
+    },
+    "page1_cbb": {
+      "pass": true,
+      "error": null,
+      "test": "priority"
+    },
+    "page2_nba": {
+      "pass": true,
+      "error": null,
+      "test": "priority"
+    },
+    "page3_broncos": {
+      "pass": true,
+      "error": null,
+      "test": "priority"
+    },
+    "page1_nhl": {
+      "pass": true,
+      "error": null,
+      "test": "remaining-pages"
+    },
+    "page1_mlb": {
+      "pass": true,
+      "error": null,
+      "test": "remaining-pages"
+    },
+    "page1_wnba": {
+      "pass": true,
+      "error": null,
+      "test": "remaining-pages"
+    },
+    "page1_cfb": {
+      "pass": true,
+      "error": null,
+      "test": "remaining-pages"
+    },
+    "page2_nhl": {
+      "pass": true,
+      "error": null,
+      "test": "remaining-pages"
+    },
+    "page2_mlb": {
+      "pass": true,
+      "error": null,
+      "test": "remaining-pages"
+    },
+    "page2_wnba": {
+      "pass": true,
+      "error": null,
+      "test": "remaining-pages"
+    },
+    "page2_cfb": {
+      "pass": true,
+      "error": null,
+      "test": "remaining-pages"
+    },
+    "page2_cbb": {
+      "pass": false,
+      "error": "page.waitForFunction: Timeout 55000ms exceeded.",
+      "test": "remaining-pages"
+    },
+    "page3_celtics": {
+      "pass": true,
+      "error": null,
+      "test": "remaining-pages"
+    },
+    "page3_bruins": {
+      "pass": true,
+      "error": null,
+      "test": "remaining-pages"
+    },
+    "page3_redsox": {
+      "pass": true,
+      "error": null,
+      "test": "remaining-pages"
+    },
+    "page3_fever": {
+      "pass": true,
+      "error": null,
+      "test": "remaining-pages"
+    },
+    "page3_arizona_cfb": {
+      "pass": false,
+      "error": "page.waitForFunction: Timeout 55000ms exceeded.",
+      "test": "remaining-pages"
+    },
+    "page3_arizona_cbb": {
+      "pass": false,
+      "error": "page.waitForFunction: Timeout 55000ms exceeded.",
+      "test": "remaining-pages"
+    }
+  },
+  "suites": {
+    "all-28-initialization": {
+      "observations": [
+        {
+          "board": "page1_nfl",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page2_nfl",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page3_broncos",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page4_broncos",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page1_nba",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page2_nba",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page3_celtics",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page4_celtics",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page1_nhl",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page2_nhl",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page3_bruins",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page4_bruins",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page1_mlb",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page2_mlb",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page3_redsox",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page4_redsox",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page1_wnba",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page2_wnba",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page3_fever",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page4_fever",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page1_cfb",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page2_cfb",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page3_arizona_cfb",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page4_arizona_cfb",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page1_cbb",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page2_cbb",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page3_arizona_cbb",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page4_arizona_cbb",
+          "status": true,
+          "error": null
+        }
+      ],
+      "errors": [
+        "BOARD_AUDIT {\"id\":\"page1_nfl\",\"sport\":\"NFL\",\"code\":200,\"bridge\":true,\"ready\":true,\"shim\":\"staging-only\",\"blocks\":5,\"failed\":[],\"errors\":[]}",
+        "BOARD_AUDIT {\"id\":\"page2_nfl\",\"sport\":\"NFL\",\"code\":200,\"bridge\":true,\"ready\":true,\"shim\":\"staging-only\",\"blocks\":2,\"failed\":[],\"errors\":[]}",
+        "BOARD_AUDIT {\"id\":\"page3_broncos\",\"sport\":\"NFL\",\"code\":200,\"bridge\":true,\"ready\":true,\"shim\":\"staging-only\",\"blocks\":2,\"failed\":[{\"path\":\"/proxy\",\"count\":32}],\"errors\":[]}",
+        "BOARD_AUDIT {\"id\":\"page4_broncos\",\"sport\":\"NFL\",\"code\":200,\"bridge\":true,\"ready\":true,\"shim\":\"staging-only\",\"blocks\":2,\"failed\":[{\"path\":\"/migration-api/nfl/season-stats\",\"count\":20}],\"errors\":[]}",
+        "BOARD_AUDIT {\"id\":\"page1_nba\",\"sport\":\"NBA\",\"code\":200,\"bridge\":true,\"ready\":true,\"shim\":\"staging-only\",\"blocks\":1,\"failed\":[],\"errors\":[]}",
+        "BOARD_AUDIT {\"id\":\"page2_nba\",\"sport\":\"NBA\",\"code\":200,\"bridge\":true,\"ready\":true,\"shim\":\"staging-only\",\"blocks\":2,\"failed\":[],\"errors\":[]}",
+        "BOARD_AUDIT {\"id\":\"page3_celtics\",\"sport\":\"NBA\",\"code\":200,\"bridge\":true,\"ready\":true,\"shim\":\"staging-only\",\"blocks\":2,\"failed\":[],\"errors\":[]}",
+        "BOARD_AUDIT {\"id\":\"page4_celtics\",\"sport\":\"NBA\",\"code\":200,\"bridge\":true,\"ready\":true,\"shim\":\"staging-only\",\"blocks\":3,\"failed\":[],\"errors\":[]}",
+        "BOARD_AUDIT {\"id\":\"page1_nhl\",\"sport\":\"NHL\",\"code\":200,\"bridge\":true,\"ready\":true,\"shim\":\"staging-only\",\"blocks\":2,\"failed\":[],\"errors\":[]}",
+        "BOARD_AUDIT {\"id\":\"page2_nhl\",\"sport\":\"NHL\",\"code\":200,\"bridge\":true,\"ready\":true,\"shim\":\"staging-only\",\"blocks\":2,\"failed\":[],\"errors\":[]}"
+      ],
+      "logFound": true
+    },
+    "basketball-player-pages": {
+      "observations": [
+        {
+          "board": "page4_celtics",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page4_arizona_cbb",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page4_fever",
+          "status": true,
+          "error": null
+        }
+      ],
+      "errors": [],
+      "logFound": true
+    },
+    "broncos-page4": {
+      "observations": [],
+      "errors": [
+        "BROWSER_CONSOLE_ERRORS [{\"kind\":\"error\",\"text\":\"Failed to load resource: net::ERR_FAILED\"},{\"kind\":\"error\",\"text\":\"Failed to load resource: net::ERR_FAILED\"},{\"kind\":\"error\",\"text\":\"Failed to load resource: net::ERR_FAILED\"},{\"kind\":\"error\",\"text\":\"Failed to load resource: net::ERR_FAILED\"},{\"kind\":",
+        "BROWSER_FAILED_REQUESTS [{\"url\":\"https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png\",\"failure\":\"net::ERR_FAILED\"},{\"url\":\"https://a.espncdn.com/i/headshots/nfl/players/full/4426338.png\",\"failure\":\"net::ERR_FAILED\"},{\"url\":\"https://a.espncdn.com/i/headshots/nfl/players/full/4241985.png\",\"failure\":"
+      ],
+      "logFound": true
+    },
+    "controller": {
+      "observations": [],
+      "errors": [],
+      "logFound": true
+    },
+    "native-player-pages": {
+      "observations": [
+        {
+          "board": "page4_bruins",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page4_redsox",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page4_arizona_cfb",
+          "status": true,
+          "error": null
+        }
+      ],
+      "errors": [],
+      "logFound": true
+    },
+    "nba-page1": {
+      "observations": [],
+      "errors": [],
+      "logFound": true
+    },
+    "nfl-page1": {
+      "observations": [],
+      "errors": [],
+      "logFound": true
+    },
+    "nfl-page2": {
+      "observations": [],
+      "errors": [],
+      "logFound": true
+    },
+    "priority": {
+      "observations": [
+        {
+          "board": "page1_cbb",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page1_cbb",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page2_nba",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page2_nba",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page3_broncos",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page3_broncos",
+          "status": true,
+          "error": null
+        }
+      ],
+      "errors": [],
+      "logFound": true
+    },
+    "remaining-pages": {
+      "observations": [
+        {
+          "board": "page1_nhl",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page1_mlb",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page1_wnba",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page1_cfb",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page2_nhl",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page2_mlb",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page2_wnba",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page2_cfb",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page2_cbb",
+          "status": false,
+          "error": "page.waitForFunction: Timeout 55000ms exceeded."
+        },
+        {
+          "board": "page3_celtics",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page3_bruins",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page3_redsox",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page3_fever",
+          "status": true,
+          "error": null
+        },
+        {
+          "board": "page3_arizona_cfb",
+          "status": false,
+          "error": "page.waitForFunction: Timeout 55000ms exceeded."
+        },
+        {
+          "board": "page3_arizona_cbb",
+          "status": false,
+          "error": "page.waitForFunction: Timeout 55000ms exceeded."
+        }
+      ],
+      "errors": [],
+      "logFound": true
+    },
+    "rotation": {
+      "observations": [],
+      "errors": [],
+      "logFound": true
+    }
+  },
   "physicalOnnVerified": false,
   "productionCutoverAuthorized": false
 }
