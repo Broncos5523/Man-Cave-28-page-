@@ -1,0 +1,35 @@
+name: Diagnose approved player Arizona Page4 skip without edits
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/diagnose-arizona-page4-rotation.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify and extract original immutable October 18 v8l release
+        run: python cloud-28/prepare.py
+      - name: Inspect only approved player transition and readiness source
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('cloud-28/source/MAN_CAVE_28_BOARD_FINAL_PRODUCTION_v1/production/player.js')
+          text=path.read_text()
+          print('APPROVED_PLAYER_JS_BYTES',len(text))
+          lines=text.splitlines()
+          tokens=('DUR','ready','setInterval','setTimeout','current','frame','rotate','preload','next','active','visible','timeout','standby','swap')
+          seen=set()
+          for index,line in enumerate(lines):
+              if any(token.lower() in line.lower() for token in tokens):
+                  for row in range(max(0,index-3),min(len(lines),index+5)):
+                      if row not in seen:
+                          print('GOLD_PLAYER_LINE',row+1,lines[row][:380])
+                          seen.add(row)
+          print('GOLD_PLAYER_LINES_TOTAL',len(lines))
+          PY
