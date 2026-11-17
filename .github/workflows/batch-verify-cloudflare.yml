@@ -1,0 +1,131 @@
+name: One-shot 28-board Cloudflare acceptance sweep
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/batch-verify-cloudflare.yml
+      - cloud-28/tests/audit-public-core-feed.py
+      - cloud-28/tests/browser-remaining-migrations.mjs
+      - cloud-28/tests/browser-native-page4.mjs
+      - cloud-28/cloudflare-live-proxy.mjs
+      - cloud-28/remaining-board-*.mjs
+      - cloud-28/page4*.mjs
+      - cloud-28/core-season-cache.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  group: one-shot-28-board-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Original data contracts and Worker bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate all original JSON adapters
+        run: node --test cloud-28/tests/*.test.mjs
+      - name: Verify bundle without deploying
+        run: |
+          mkdir -p cloud-28/cloudflare-static-dist
+          printf '<!doctype html><title>bundle check</title>' > cloud-28/cloudflare-static-dist/index.html
+          npx --yes wrangler@4 deploy --dry-run --outdir ./_batch-bundle
+
+  published-source:
+    name: Public ESPN season source is current and complete
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Worker-readable public source freshness and full team set
+        run: python cloud-28/tests/audit-public-core-feed.py
+
+  deployed:
+    name: Confirm exact revision on Cloudflare staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for this exact commit to be deployed
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python cloud-28/tests/wait-cloudflare-deployment.py
+
+  browsers:
+    name: Original-browser check — ${{ matrix.check }}
+    needs: deployed
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - check: priority
+            script: cloud-28/tests/browser-priority-migrations.mjs
+          - check: remaining-pages
+            script: cloud-28/tests/browser-remaining-migrations.mjs
+          - check: basketball-player-pages
+            script: cloud-28/tests/browser-page4-migrations.mjs
+          - check: native-player-pages
+            script: cloud-28/tests/browser-native-page4.mjs
+          - check: rotation
+            script: cloud-28/tests/browser-rotation-staging.mjs
+          - check: controller
+            script: cloud-28/tests/browser-tv3-staging.mjs
+          - check: all-28-initialization
+            script: cloud-28/tests/audit-all-board-views.mjs
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install browser
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Test original renderer against Cloudflare (no TV writes)
+        run: node ${{ matrix.script }}
+      - name: Preserve diagnostics and screenshots even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-28-${{ matrix.check }}-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |
+            *.json
+            *-cloudflare.png
+            *-render.png
+            *-players.png
+            *-native.png
+
+  summary:
+    name: Combined readiness gate — no production cutover
+    if: always()
+    needs: [contracts, published-source, deployed, browsers]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report all results and reject incomplete cutover
+        env:
+          CONTRACTS: ${{ needs.contracts.result }}
+          SOURCE: ${{ needs.published-source.result }}
+          DEPLOY: ${{ needs.deployed.result }}
+          BROWSERS: ${{ needs.browsers.result }}
+        run: |
+          echo '## Man Cave Sports Book — one-shot Cloudflare verification' >> "$GITHUB_STEP_SUMMARY"
+          echo '| Gate | Result |' >> "$GITHUB_STEP_SUMMARY"
+          echo '|---|---|' >> "$GITHUB_STEP_SUMMARY"
+          echo "| 28-board JSON contracts | $CONTRACTS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Fresh verified ESPN Core source | $SOURCE |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Exact Cloudflare staging deployment | $DEPLOY |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Seven independent browser suites | $BROWSERS |" >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Physical Onn TV / production controller cutover remains separate and requires user approval.' >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$CONTRACTS" != success || "$SOURCE" != success || "$DEPLOY" != success || "$BROWSERS" != success ]]; then
+            echo 'NOT READY — inspect suite-specific logs and evidence before changing any TV.'
+            exit 1
+          fi
+          echo 'Automated staging gates passed; physical Onn testing still required.'
