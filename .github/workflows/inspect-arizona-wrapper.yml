@@ -43,7 +43,9 @@ jobs:
               if not p.exists():print('DIAGNOSTIC_NOT_FOUND',rel);continue
               src=p.read_text()
               print('DIAGNOSTIC_SOURCE',rel,'length',len(src))
-              if rel.endswith('board-runtime.js'):\n                  for i,line in enumerate(src.splitlines()):print('ORIGINAL_RUNTIME',i+1,line[:900])\n              for tok in ['mc-board-ready','mc-board-load-failed','mcproduction','postMessage','setTimeout','addEventListener']:
+              if rel.endswith('board-runtime.js'):
+                  for i,line in enumerate(src.splitlines()):print('ORIGINAL_RUNTIME',i+1,line[:900])
+              for tok in ['mc-board-ready','mc-board-load-failed','mcproduction','postMessage','setTimeout','addEventListener']:
                   pos=src.find(tok)
                   if pos>=0:print('DIAGNOSTIC_TOKEN',rel,tok,src[max(0,pos-350):pos+600].replace('\\n',' ')[:1000])
           PY
