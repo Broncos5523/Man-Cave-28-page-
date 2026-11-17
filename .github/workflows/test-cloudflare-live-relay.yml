@@ -57,6 +57,8 @@ jobs:
           assert "MCSpotlightState" in (root/"production/spotlight-state.js").read_text()
           assert "/staging/player.js" in page
           assert "staging/boards/" in (root/"staging/index.html").read_text()
+          for module in ("ticker_nfl_final.mjs","ticker_pro_final.mjs","ticker_college_final.mjs"):
+              assert (root/module).is_file() and (root/module).stat().st_size>1000,module
           print("PASS original 30-second 28-board Cloudflare rotation staging exports",flush=True)
           assert len(list((root/"cdn-inline").iterdir()))==316
           print("PASS 28/28 unchanged Gold Master board staging copies load controlled public feed shim",flush=True)
