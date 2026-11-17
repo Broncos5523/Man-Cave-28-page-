@@ -1,0 +1,22 @@
+name: Audit 28 original Cloudflare boards in a real browser (no deployments)
+
+on:
+  push:
+    paths:
+      - cloud-28/tests/audit-all-board-views.mjs
+      - .github/workflows/audit-28-cloudflare-views.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Chrome
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Inspect all 28 approved board pages and record API gaps
+        run: node cloud-28/tests/audit-all-board-views.mjs
