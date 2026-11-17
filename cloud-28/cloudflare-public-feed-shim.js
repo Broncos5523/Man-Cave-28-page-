@@ -4,7 +4,9 @@
  */
 (function(){
   'use strict';
-  if(!/^\/staging\/boards\/[a-z0-9_]+\.html$/.test(location.pathname))return;
+  // Cloudflare static-assets canonicalization redirects *.html to extensionless URLs.
+  const board=/^\/staging\/boards\/([a-z0-9_]+)(?:\.html)?\/?$/.exec(location.pathname);
+  if(!board)return;
   const allow=new Set([
     'site.api.espn.com','sports.core.api.espn.com','site.web.api.espn.com',
     'a.espncdn.com','a.espn.com',
@@ -19,7 +21,7 @@
     // The approved Gold Master calls proxied() BEFORE fetch(), producing
     // /proxy?url=<encoded ESPN Core URL>. Intercept that actual request shape
     // as well as direct HTTPS; otherwise the Worker returns a Core 403.
-    if(raw&&location.pathname==='/staging/boards/page4_broncos.html'){
+    if(raw&&board[1]==='page4_broncos'){
       try{
         const source=raw.startsWith('/proxy?')
           ? new URL(raw,'https://man-cave-local.invalid').searchParams.get('url')
@@ -40,7 +42,7 @@
         // ESPN Core responds HTTP 403 from Cloudflare. Use its accessible Site
         // player-stat record but require the Worker to verify exact season/team.
         // The original board's stat/spotlight parsing remains unchanged.
-        if(location.pathname==='/staging/boards/page4_broncos.html'&&url.hostname==='sports.core.api.espn.com'){
+        if(board[1]==='page4_broncos'&&url.hostname==='sports.core.api.espn.com'){
           const match=/^\/v2\/sports\/football\/leagues\/nfl\/seasons\/(\d{4})\/types\/2\/athletes\/(\d{5,10})\/statistics(?:\/0)?$/.exec(url.pathname);
           if(match){
             return native('/migration-api/nfl/season-stats?season='+encodeURIComponent(match[1])+'&athlete='+encodeURIComponent(match[2])+'&team=7',init);
