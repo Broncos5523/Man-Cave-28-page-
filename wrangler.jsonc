@@ -1,0 +1,9 @@
+{
+  // This is the Cloudflare WORKERS Git integration used by the user on iPhone.
+  // Image-only staging: do not change controller, 28-board routes, or live APIs.
+  "name": "man-cave-28-page",
+  "compatibility_date": "2026-11-17",
+  "assets": {
+    "directory": "./cloud-28/cloudflare-static-dist"
+  }
+}
