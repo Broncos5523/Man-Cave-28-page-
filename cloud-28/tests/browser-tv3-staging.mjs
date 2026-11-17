@@ -88,6 +88,22 @@ try{
   await page.evaluate(()=>window.__mockFirebaseThird({type:'rotation'}));
   await page.waitForFunction(()=>!document.getElementById('mc-tv3-single-board'),
     null,{timeout:15000});
+  // Beyond simply removing the top-layer frame, verify the 28-page player
+  // itself remains live and advances after the controller returns to rotation.
+  const beforeRotation=await page.evaluate(()=>({
+   index:window.__MC_PRODUCTION?.index,current:window.__MC_PRODUCTION?.current
+  }));
+  await page.waitForFunction(before=>window.__MC_PRODUCTION?.index!==before.index&&
+     !!window.__MC_PRODUCTION?.current&&
+     !!document.querySelector('#stage iframe.current'),
+   beforeRotation,{timeout:65000});
+  const afterRotation=await page.evaluate(()=>({
+   index:window.__MC_PRODUCTION?.index,current:window.__MC_PRODUCTION?.current,
+   visible:document.querySelector('#stage iframe.current')?.dataset.board
+  }));
+  if(afterRotation.visible!==afterRotation.current)
+    throw Error('Controller 28-board rotation returned but visible board did not advance');
+  console.log('PASS_ONN_TV3_28_BOARD_ROTATION_AFTER_WRESTLING',JSON.stringify({beforeRotation,afterRotation}));
 
   // Onn HDMI output is landscape even when the physical TV is portrait.
   // Verify the approved rotation/fit matrix is mirrored on the selected board.
