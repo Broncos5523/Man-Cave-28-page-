@@ -6,12 +6,20 @@ const browser=await chromium.launch({headless:true}),context=await browser.newCo
 const results=[];
 try{
   for(const board of remainingBoardIds){
-    const page=await context.newPage(),errors=[],responses=[];
+    const page=await context.newPage(),errors=[],responses=[],sourceFailures=[];
     page.on('pageerror',e=>errors.push(String(e.message||e)));
-    page.on('response',async r=>{if(r.url().includes('/api/board/'+board))responses.push({status:r.status(),body:r.ok()?'current JSON':(await r.text().catch(()=>'' )).slice(0,600)})});
+    page.on('response',async r=>{
+      const u=new URL(r.url());
+      if(r.url().includes('/api/board/'+board))
+        responses.push({status:r.status(),body:r.ok()?'current JSON':(await r.text().catch(()=>'' )).slice(0,600)});
+      if(!r.ok()&&sourceFailures.length<30&&
+         (u.pathname==='/proxy'||u.pathname.startsWith('/api/board/')||u.pathname.startsWith('/production/api/')))
+        sourceFailures.push({status:r.status(),path:u.pathname,
+          upstream:u.pathname==='/proxy'?(u.searchParams.get('url')||'').slice(0,220):null});
+    });
     const result={board,pass:false};
     try{
-      const response=await page.goto(host+'/staging/boards/'+board+'.html?migration=remaining-r1',{waitUntil:'domcontentloaded',timeout:45000});
+      const response=await page.goto(host+'/staging/boards/'+board+'.html?migration=remaining-r2',{waitUntil:'domcontentloaded',timeout:45000});
       if(response?.status()!==200)throw Error('Board navigation failed');
       await page.waitForFunction(id=>{
         try{
@@ -47,7 +55,7 @@ try{
       }
       if(board==='page1_cfb'&&JSON.stringify(result.apNames)!==JSON.stringify(result.expectedAP))throw Error('Displayed AP teams differ from verified feed');
       result.pass=true;
-    }catch(e){result.error=e.message;result.jsErrors=errors;result.responses=responses;
+    }catch(e){result.error=e.message;result.jsErrors=errors;result.responses=responses;result.sourceFailures=sourceFailures;
       result.diagnostic=await page.evaluate(id=>{
         let feed=null;try{feed=JSON.parse(localStorage.getItem('mc-v2-feed-'+id))}catch{}
         return {ready:!!window.MCBoard?.ready,feedState:feed?.dataState,players:feed?.leaders?.players,snapshot:feed?.teamPanels?.snapshot,
