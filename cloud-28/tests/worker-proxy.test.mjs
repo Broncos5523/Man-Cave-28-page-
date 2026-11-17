@@ -150,3 +150,29 @@ test("Staging shim rewrites only Broncos NFL player-stat requests",async()=>{
   await other.fetch("https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/types/2/athletes/4426338/statistics/0");
   assert.match(urls.pop(),/^\/proxy\?url=/);
 });
+
+
+test("staging rotation browser-local state GET and POST preserve original player contract", async()=>{
+  const state=host+"/staging/api/state";
+  const heartbeat=host+"/staging/api/heartbeat";
+  const initial=await app.fetch(new Request(state),{},null);
+  assert.equal(initial.status,200);
+  assert.deepEqual(await initial.json(),{spots:{},playback:{}});
+  const save=await app.fetch(new Request(state,{
+    method:"POST",headers:{"Content-Type":"application/json","Origin":host},
+    body:JSON.stringify({spots:{page4_broncos:{serial:2}},playback:{index:3,startedAt:123}})
+  }),{},null);
+  assert.equal(save.status,200);
+  assert.equal((await save.json()).storage,"browser-local");
+  const beat=await app.fetch(new Request(heartbeat,{
+    method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({board:"page4_broncos"})
+  }),{},null);
+  assert.equal(beat.status,200);
+  const disallowed=await app.fetch(new Request(state,{
+    method:"POST",headers:{"Content-Type":"application/json","Origin":"https://malicious.example"},
+    body:"{}"
+  }),{},null);
+  assert.equal(disallowed.status,403);
+  const after=await app.fetch(new Request(state),{},null);
+  assert.deepEqual(await after.json(),{spots:{},playback:{}});
+});
