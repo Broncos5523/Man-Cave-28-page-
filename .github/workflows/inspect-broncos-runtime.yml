@@ -1,0 +1,20 @@
+name: Inspect Broncos Page4 runtime references (read-only)
+
+on:
+  push:
+    paths:
+      - cloud-28/inspect_broncos_runtime.py
+      - .github/workflows/inspect-broncos-runtime.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - name: Load original checksum-verified production package
+        run: python cloud-28/prepare.py
+      - name: Inspect Broncos Page4 original runtime
+        run: python cloud-28/inspect_broncos_runtime.py
