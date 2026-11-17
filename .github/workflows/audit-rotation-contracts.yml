@@ -43,6 +43,9 @@ jobs:
           for item in json.loads((app/'production/boards.json').read_text())['boards']:
               bid=item['id']
               p=gold/'boards'/(bid+'.html')
+              if not p.is_file():
+                  print('BOARD',bid,'VIRTUAL_OR_REMOTE',item.get('route'),'SOURCE_INLINE_UNAVAILABLE')
+                  continue
               raw=p.read_text(errors='replace')
               raw=re.sub(r'data:image/(?:png|jpe?g|webp|gif|svg\+xml|avif|bmp);base64,[A-Za-z0-9+/=]+','[image]',raw,flags=re.I)
               matched=sorted(set(re.findall(r'(?:\/api\/board\/[a-z0-9_]+|\/production\/api\/[a-zA-Z0-9_\-]+|runtime_[a-zA-Z0-9_\-]+\.js|https:\/\/(?:site|sports)\.[a-zA-Z0-9.]+\.com\/[^\s"<>]{0,130})',raw,flags=re.I)))
