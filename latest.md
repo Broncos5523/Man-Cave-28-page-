@@ -1,7 +1,7 @@
 # Man Cave — one-shot Cloudflare acceptance report
 
-GitHub revision: 0bdcfb27784673a8c40c5bb23b6c71e9e94f02b5
-Checked: 2026-11-17T18:40:37.563694+00:00
+GitHub revision: 32dbf196623e898a9ea39785345683b746e0dcb4
+Checked: 2026-11-17T18:48:53.463252+00:00
 
 | Gate | Result |
 |---|---|
@@ -21,15 +21,15 @@ Checked: 2026-11-17T18:40:37.563694+00:00
 | page1_nfl | True |  |
 | page1_nhl | True |  |
 | page1_wnba | True |  |
-| page2_cbb | False | page.waitForFunction: Timeout 55000ms exceeded. |
+| page2_cbb | True |  |
 | page2_cfb | True |  |
 | page2_mlb | True |  |
 | page2_nba | True |  |
 | page2_nfl | True |  |
 | page2_nhl | True |  |
 | page2_wnba | True |  |
-| page3_arizona_cbb | False | page.waitForFunction: Timeout 55000ms exceeded. |
-| page3_arizona_cfb | False | page.waitForFunction: Timeout 55000ms exceeded. |
+| page3_arizona_cbb | True |  |
+| page3_arizona_cfb | True |  |
 | page3_broncos | True |  |
 | page3_bruins | True |  |
 | page3_celtics | True |  |

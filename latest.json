@@ -1,6 +1,6 @@
 {
-  "checkedAt": "2026-11-17T18:40:37.563694+00:00",
-  "sourceCommit": "0bdcfb27784673a8c40c5bb23b6c71e9e94f02b5",
+  "checkedAt": "2026-11-17T18:48:53.463252+00:00",
+  "sourceCommit": "32dbf196623e898a9ea39785345683b746e0dcb4",
   "description": "Automated staging validation only; physical Onn receiver not verified",
   "gates": {
     "contracts": "success",
@@ -78,77 +78,77 @@
     "page1_nhl": {
       "pass": true,
       "error": null,
-      "test": "remaining-pages"
+      "test": "remaining-group-a"
     },
     "page1_mlb": {
       "pass": true,
       "error": null,
-      "test": "remaining-pages"
+      "test": "remaining-group-a"
     },
     "page1_wnba": {
       "pass": true,
       "error": null,
-      "test": "remaining-pages"
+      "test": "remaining-group-a"
     },
     "page1_cfb": {
       "pass": true,
       "error": null,
-      "test": "remaining-pages"
+      "test": "remaining-group-a"
     },
     "page2_nhl": {
       "pass": true,
       "error": null,
-      "test": "remaining-pages"
+      "test": "remaining-group-a"
     },
     "page2_mlb": {
       "pass": true,
       "error": null,
-      "test": "remaining-pages"
+      "test": "remaining-group-b"
     },
     "page2_wnba": {
       "pass": true,
       "error": null,
-      "test": "remaining-pages"
+      "test": "remaining-group-b"
     },
     "page2_cfb": {
       "pass": true,
       "error": null,
-      "test": "remaining-pages"
+      "test": "remaining-group-b"
     },
     "page2_cbb": {
-      "pass": false,
-      "error": "page.waitForFunction: Timeout 55000ms exceeded.",
-      "test": "remaining-pages"
+      "pass": true,
+      "error": null,
+      "test": "remaining-group-b"
     },
     "page3_celtics": {
       "pass": true,
       "error": null,
-      "test": "remaining-pages"
+      "test": "remaining-group-b"
     },
     "page3_bruins": {
       "pass": true,
       "error": null,
-      "test": "remaining-pages"
+      "test": "remaining-group-c"
     },
     "page3_redsox": {
       "pass": true,
       "error": null,
-      "test": "remaining-pages"
+      "test": "remaining-group-c"
     },
     "page3_fever": {
       "pass": true,
       "error": null,
-      "test": "remaining-pages"
+      "test": "remaining-group-c"
     },
     "page3_arizona_cfb": {
-      "pass": false,
-      "error": "page.waitForFunction: Timeout 55000ms exceeded.",
-      "test": "remaining-pages"
+      "pass": true,
+      "error": null,
+      "test": "remaining-group-c"
     },
     "page3_arizona_cbb": {
-      "pass": false,
-      "error": "page.waitForFunction: Timeout 55000ms exceeded.",
-      "test": "remaining-pages"
+      "pass": true,
+      "error": null,
+      "test": "remaining-group-c"
     }
   },
   "suites": {
@@ -415,7 +415,7 @@
       "errors": [],
       "logFound": true
     },
-    "remaining-pages": {
+    "remaining-group-a": {
       "observations": [
         {
           "board": "page1_nhl",
@@ -441,7 +441,13 @@
           "board": "page2_nhl",
           "status": true,
           "error": null
-        },
+        }
+      ],
+      "errors": [],
+      "logFound": true
+    },
+    "remaining-group-b": {
+      "observations": [
         {
           "board": "page2_mlb",
           "status": true,
@@ -459,14 +465,20 @@
         },
         {
           "board": "page2_cbb",
-          "status": false,
-          "error": "page.waitForFunction: Timeout 55000ms exceeded."
+          "status": true,
+          "error": null
         },
         {
           "board": "page3_celtics",
           "status": true,
           "error": null
-        },
+        }
+      ],
+      "errors": [],
+      "logFound": true
+    },
+    "remaining-group-c": {
+      "observations": [
         {
           "board": "page3_bruins",
           "status": true,
@@ -484,13 +496,13 @@
         },
         {
           "board": "page3_arizona_cfb",
-          "status": false,
-          "error": "page.waitForFunction: Timeout 55000ms exceeded."
+          "status": true,
+          "error": null
         },
         {
           "board": "page3_arizona_cbb",
-          "status": false,
-          "error": "page.waitForFunction: Timeout 55000ms exceeded."
+          "status": true,
+          "error": null
         }
       ],
       "errors": [],
