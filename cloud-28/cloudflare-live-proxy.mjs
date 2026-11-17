@@ -1,4 +1,6 @@
 import {buildNbaPage1} from './nba-page1-contract.mjs';
+import {buildCbbPage1} from './cbb-page1-contract.mjs';
+import {normalizeEvent,tickerFromEvents} from './board-contract-common.mjs';
 import {buildNflPage2} from './nfl-page2-contract.mjs';
 import {buildNflPage1} from './nfl-page1-contract.mjs';
 /*
@@ -102,12 +104,13 @@ async function verifiedNflSeasonStats(request,ctx) {
   }
 }
 
-async function relay(request,ctx) {
+async function relay(request,ctx,jsonCap=5*1024*1024) {
   if(request.method!=="GET") return json({ok:false,error:"GET only"},405);
   const src=new URL(request.url).searchParams.get("url");
   let target;
   try {target=validExternal(src);}catch(e){return json({ok:false,error:e.message},403);}
-  const ttl=ttlFor(target),cacheKey=new Request("https://man-cave-public-cache.invalid/"+encodeURIComponent(target.toString()));
+  const ttl=ttlFor(target),cacheKey=new Request("https://man-cave-public-cache.invalid/"+
+    (jsonCap===5*1024*1024?'':'internal-'+jsonCap+'/')+encodeURIComponent(target.toString()));
   const edgeCache=typeof caches!=="undefined"?caches.default:null;
   if(edgeCache) {
     const cached=await edgeCache.match(cacheKey);
@@ -131,7 +134,7 @@ async function relay(request,ctx) {
   if(!TEXT_MIME.test(type)&&!IMAGE_MIME.test(type))return json({ok:false,error:"Unsupported upstream content type"},502);
   if(IMAGE_MIME.test(type)&&!IMAGE_HOSTS.has(target.hostname))
     return json({ok:false,error:"Image endpoint not approved"},403);
-  const cap=IMAGE_MIME.test(type)?8*1024*1024:5*1024*1024;
+  const cap=IMAGE_MIME.test(type)?8*1024*1024:jsonCap;
   if(Number(upstream.headers.get("content-length")||0)>cap)return json({ok:false,error:"Upstream response exceeds relay limit"},502);
   // Bound actual stream bytes even if upstream omits Content-Length.
   const parts=[],reader=upstream.body?.getReader();let size=0;
@@ -156,6 +159,43 @@ async function relay(request,ctx) {
   const answer=new Response(body,{status:200,headers});
   if(edgeCache&&ctx?.waitUntil)ctx.waitUntil(edgeCache.put(cacheKey,answer.clone()));
   return answer;
+}
+async function publicJson(url,ctx,cap){
+  const response=await relay(new Request('https://man-cave-relay.invalid/proxy?url='+encodeURIComponent(url)),ctx,cap);
+  if(!response.ok)throw Error('ESPN public source unavailable: '+new URL(url).pathname);
+  return response.json();
+}
+async function gameWindow(path,scoreboard,year,ctx,now=new Date()){
+  const requests=Array.from({length:10},(_,i)=>{
+    const date=new Date(now.getTime()+(i-2)*86400000).toISOString().slice(0,10).replaceAll('-','');
+    const groups=path.includes('mens-college')?'&groups=50':path.includes('college-football')?'&groups=80':'';
+    return publicJson('https://site.api.espn.com/apis/site/v2/sports/'+path+'/scoreboard?dates='+date+'&limit=1000'+groups,ctx,8*1024*1024);
+  });
+  const days=await Promise.all(requests);
+  const events=[scoreboard,...days].flatMap(d=>(d.events||[]).map(normalizeEvent))
+    .filter(e=>e&&Number(e.season?.year)===year);
+  return tickerFromEvents(events,now);
+}
+async function cbbPage1Api(request,ctx){
+  if(request.method!=='GET')return json({ok:false,error:'GET only'},405);
+  try{
+    const path='basketball/mens-college-basketball',site='https://site.api.espn.com';
+    const scoreboard=await publicJson(site+'/apis/site/v2/sports/'+path+'/scoreboard?limit=1000&groups=50',ctx);
+    const year=Number(scoreboard.leagues?.[0]?.season?.year||scoreboard.season?.year);
+    if(!Number.isInteger(year)||year<2025||year>2036)throw Error('CBB season unverified');
+    // ESPN's full D-I standings are ~6 MB. Only this server-selected read gets
+    // an 8 MB bound; the public /proxy retains its existing 5 MB JSON limit.
+    const [standings,rankings,tournament,ticker]=await Promise.all([
+      publicJson(site+'/apis/v2/sports/'+path+'/standings?season='+year+'&seasontype=2',ctx,8*1024*1024),
+      publicJson(site+'/apis/site/v2/sports/'+path+'/rankings?season='+year+'&seasontype=2',ctx),
+      publicJson(site+'/apis/site/v2/sports/'+path+'/scoreboard?dates='+(year-1)+'&limit=1000&seasontype=3&groups=100',ctx),
+      gameWindow(path,scoreboard,year,ctx)
+    ]);
+    const data=buildCbbPage1(scoreboard,standings,rankings,tournament,new Date(),ticker);
+    return new Response(JSON.stringify(data),{headers:{'Content-Type':'application/json; charset=utf-8',
+      'Cache-Control':'public, max-age=60','X-Content-Type-Options':'nosniff',
+      'X-Man-Cave-Contract':'original-page1-cbb-staging'}});
+  }catch(e){return json({ok:false,error:'CBB original contract verification failed',detail:e.message},503);}
 }
 async function nflPage1Api(request,ctx){
   if(request.method!=="GET")return json({ok:false,error:"GET only"},405);
@@ -271,6 +311,7 @@ export default {
     if(path==='/api/board/page1_nfl')return nflPage1Api(request,ctx);
     if(path==='/api/board/page2_nfl')return nflPage2Api(request,ctx);
     if(path==='/api/board/page1_nba')return nbaPage1Api(request,ctx);
+    if(path==='/api/board/page1_cbb')return cbbPage1Api(request,ctx);
     if(path==='/staging/api/state'||path==='/staging/api/heartbeat')
       return stagingPlayerState(request);
     if(path==="/proxy")return relay(request,ctx);

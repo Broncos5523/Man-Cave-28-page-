@@ -1,0 +1,53 @@
+name: Verify Cloudflare priority adapters and original renderers
+on:
+  push:
+    paths:
+      - cloud-28/*contract*.mjs
+      - cloud-28/cloudflare-live-proxy.mjs
+      - cloud-28/tests/*priority*
+      - cloud-28/tests/cbb-page1.test.mjs
+      - .github/workflows/verify-priority-migrations.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node --test cloud-28/tests/*.test.mjs
+      - name: Bundle Worker without deployment
+        run: |
+          mkdir -p cloud-28/cloudflare-static-dist
+          printf '<!doctype html><title>bundle check</title>' > cloud-28/cloudflare-static-dist/index.html
+          npx --yes wrangler@4 deploy --dry-run --outdir ./_priority-bundle
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    needs: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for existing Cloudflare Git build
+        run: |
+          python - <<'PY'
+          import json,time,urllib.request
+          url='https://man-cave-28-page.broncos5523.workers.dev/api/board/page1_cbb'
+          for attempt in range(36):
+            try:
+              with urllib.request.urlopen(url,timeout=35) as r: d=json.load(r)
+              assert d['board']=='page1_cbb' and d['dataState']=='current'
+              print('CBB_PUBLIC_CONTRACT_READY',d['context']['year']);break
+            except Exception as e:
+              print('Waiting for deployed adapter',attempt,type(e).__name__,flush=True);time.sleep(10)
+          else: raise SystemExit('Cloudflare adapter not available; no rendering claim')
+          PY
+      - name: Install browser for original board verification
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - run: node cloud-28/tests/browser-priority-migrations.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: priority-original-board-rendering
+          path: '*-cloudflare.png'

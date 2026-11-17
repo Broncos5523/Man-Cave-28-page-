@@ -61,6 +61,15 @@ Updated: November 17, 2026 (11:30 AM America/New_York)
 
 ## Next technical work
 
+### November 17 continuation — CBB adapter awaiting deployed browser proof
+
+- Added strict `page1_cbb` original-contract adapter: current ESPN 2027 AP Top 25 (ties allowed), all 32 D-I conferences / 365 current teams, and last-completed 2026 tournament (67 finals / 63 bracket matches), explicitly labelled by the untouched original renderer.
+- Confirmed and addressed the audit blocker: full D-I standings are 6,130,969 bytes. An internal server-selected read is bounded to 8 MiB; public `/proxy` remains bounded to 5 MiB. No general proxy expansion.
+- Added original live-only / recent-finals / seven-day ticker selection and ten-date scoreboard window for the new route.
+- Local regression: 33 passed, zero failed. Original Gold Master source, graphics, timing, controller and Firebase assignments unchanged.
+- Added deployed renderer CI with a fresh browser storage context, actual images, DOM-versus-feed comparisons and screenshot artifacts. CBB is **not counted as verified until this passes**.
+- Rollback before this continuation: source `5e004e70642cdb77f8ba518f793b19abcf0e8aed`, Cloudflare version `1c59008c-453f-4da1-8b95-2c99e33249ec`.
+
 Port remaining current-season `/api/board` payload contracts, prioritizing NBA Page 2, CBB and NFL Page 3, keeping exact approved v8l JSON render categories. Four of 28 original pages have verified live data; 24 remain. Current NBA playoffs are seed projections only. Preserve the approved JSON shapes, original animations and 30s/7s timings. Then verify all board pages in Chromium, test Firebase controlled boards on a physical Onn, switch only the 32-inch receiver URL when safe, and finally migrate Xfinity and Yahoo backends off Render separately.
 
 **Rule:** No guessed numeric data, no career total in place of current season, no source design changes, no premature production cutover.
