@@ -1,9 +1,13 @@
 {
-  // This is the Cloudflare WORKERS Git integration used by the user on iPhone.
-  // Image-only staging: do not change controller, 28-board routes, or live APIs.
+  // MAN CAVE SPORTS BOOK: LIVE DATA MIGRATION, STAGING ONLY.
+  // Static artwork bypasses Worker; only explicit /proxy and /migration-api/* use it.
+  // Existing controller, Firebase, Xfinity and TV URLs remain unchanged.
   "name": "man-cave-28-page",
+  "main": "./cloud-28/cloudflare-live-proxy.mjs",
   "compatibility_date": "2026-11-17",
   "assets": {
-    "directory": "./cloud-28/cloudflare-static-dist"
+    "directory": "./cloud-28/cloudflare-static-dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/proxy", "/migration-api/*"]
   }
 }
