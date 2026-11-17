@@ -46,17 +46,21 @@ try{
         frames:[...document.querySelectorAll('#stage iframe')].map(f=>({
           id:f.dataset.board,visible:f.classList.contains('current'),
           ready:!!f.contentWindow?.MCBoard?.ready,active:!!f.contentWindow?.MCBoard?.active,
-          href:f.src,subframe:!!f.contentWindow?.document?.querySelector('iframe')
+          href:f.src,subframe:!!f.contentWindow?.document?.querySelector('iframe'),
+          childReady:!!f.contentWindow?.document?.querySelector('iframe')?.contentWindow?.MCBoard?.ready
         })),messages:window.__MC_ARIZONA_MESSAGES__?.slice(-8),
         recent:window.__MC_PRODUCTION_EVENTS?.slice(-6)};
     });
     observations.push(state);
-    const seen=observations.some(o=>o.board==='page4_arizona_cfb');
-    if(seen&&observations.filter(o=>o.board==='page4_arizona_cfb').length>=3)break;
+    const seen=observations.some(o=>o.board==='page4_arizona_cfb'&&o.frames.some(f=>
+      f.id==='page4_arizona_cfb'&&f.ready&&f.childReady));
+    if(seen&&observations.filter(o=>o.board==='page4_arizona_cfb'&&
+      o.frames.some(f=>f.id==='page4_arizona_cfb'&&f.ready&&f.childReady)).length>=3)break;
     if(state.index>=24&&!seen)break;
     await page.waitForTimeout(2500);
   }
-  const success=observations.some(o=>o.board==='page4_arizona_cfb');
+  const success=observations.some(o=>o.board==='page4_arizona_cfb'&&o.frames.some(f=>
+    f.id==='page4_arizona_cfb'&&f.ready&&f.childReady));
   const summary={checkedAt:new Date().toISOString(),passed:success,
     observed:observations.length,startingBoard:observations[0]?.board,
     last:observations.at(-1),errors,failures,messages:observations.flatMap(o=>o.messages||[])
