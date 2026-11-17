@@ -1,0 +1,72 @@
+name: Audit approved v8l delivery for low-bandwidth hosting
+
+on:
+  push:
+    paths:
+      - .github/workflows/audit-v8l-delivery.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Retrieve checksum-verified original v8l package
+        run: python cloud-28/prepare.py
+      - name: Analyze asset sizes and delivery patterns
+        shell: bash
+        run: |
+          python - <<'PY'
+          import pathlib, collections, re, os
+          src=pathlib.Path("cloud-28/source/MAN_CAVE_28_BOARD_FINAL_PRODUCTION_v1")
+          files=[p for p in src.rglob('*') if p.is_file()]
+          if not files: raise SystemExit("Approved source missing")
+          by_size=sorted(((p.stat().st_size,p.relative_to(src).as_posix()) for p in files), reverse=True)
+          ext=collections.defaultdict(lambda:[0,0])
+          for size,path in by_size:
+              key=pathlib.Path(path).suffix.lower() or '<none>'
+              ext[key][0]+=1;ext[key][1]+=size
+          print("=== VERIFIED SOURCE FILE INVENTORY ===",flush=True)
+          print("FILES",len(files),"TOTAL_BYTES",sum(s for s,_ in by_size),flush=True)
+          print("MAX_FILE_BYTES",by_size[0][0],flush=True)
+          print("OVER_25_MIB",sum(size>25*1024*1024 for size,_ in by_size),flush=True)
+          print("OVER_100_MIB",sum(size>100*1024*1024 for size,_ in by_size),flush=True)
+          for extension,(count,total) in sorted(ext.items(),key=lambda item:-item[1][1]):
+              print("TYPE",extension,count,total,flush=True)
+          print("TOP_35_LARGEST",flush=True)
+          for size,path in by_size[:35]: print("FILE",size,path,flush=True)
+          targets=["production_server.py","production/player.html","production/player.js",
+                   "production/boards.json","production/board-runtime.js"]
+          regex=re.compile(r'Cache-Control|no-store|assets/|/api/board|/production/board|/hosted/|/proxy|send_header|def do_GET|def adapt_board|def reply|fetch\(|iframe|frame\.src|\.svg|\.png|\.webp|\.jpg',re.I)
+          for name in targets:
+              p=src/name
+              if not p.is_file():continue
+              print("=== INSPECT",name,"BYTES",p.stat().st_size,"===",flush=True)
+              for n,line in enumerate(p.read_text(errors="replace").splitlines(),1):
+                  if regex.search(line): print("CODE",name,n,line.strip()[:180],flush=True)
+          htmls=[(size,path) for size,path in by_size if path.lower().endswith((".html",".htm"))]
+          print("TOP_15_HTML",flush=True)
+          for size,path in htmls[:15]:
+              source=(src/path).read_text(errors="replace")
+              print("HTML",size,path,"DATA_URI_COUNT",source.count("data:image/"),"BASE64_PAYLOADS",len(re.findall(r'base64,[A-Za-z0-9+/=]{1024,}',source)),flush=True)
+          report=["# Approved v8l source audit",
+             "- Files: "+str(len(files)),
+             "- Total unpacked: %.1f MiB" % (sum(s for s,_ in by_size)/1024/1024),
+             "- Largest file: %.1f MiB (%s)" % (by_size[0][0]/1024/1024,by_size[0][1]),
+             "- Over Cloudflare Pages 25-MiB asset cap: "+str(sum(size>25*1024*1024 for size,_ in by_size)),
+             "## Largest assets"]
+          report += ["- %.2f MiB — %s" % (size/1024/1024,path) for size,path in by_size[:25]]
+          report += ["## Static file classes"]
+          report += ["- %s: %s files, %.1f MiB" % (k,v[0],v[1]/1024/1024) for k,v in sorted(ext.items(),key=lambda item:-item[1][1])]
+          pathlib.Path("v8l-audit-report.md").write_text("\n".join(report)+"\n")
+          with open(os.environ["GITHUB_STEP_SUMMARY"],"a") as f:f.write("\n".join(report)+"\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: approved-v8l-static-audit
+          path: v8l-audit-report.md
+          retention-days: 7
