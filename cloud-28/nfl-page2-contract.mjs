@@ -11,15 +11,16 @@ const categories=[
   ["PASSING TOUCHDOWNS","passingTouchdowns"],
   ["INTERCEPTIONS","interceptions"]
 ];
-// ESPN /statistics/byteam publishes two rows for each category, offense then
-// defense. Verified against original v8l actual values, not the broad "passing"
-// total (which is gross rather than NET passing offense).
+// ESPN /statistics/byteam splits rows with IDs "0" and "900".
+// Their meaning varies by category; each metric + split ID below was checked
+// against the exact original v8l player-board values, never inferred by order.
+// "NET passing" is intentionally different from gross passing yards.
 const teamCards=[
-  ["PASSING OFFENSE","passing",0,"netPassingYardsPerGame",1],
-  ["RUSHING OFFENSE","rushing",0,"rushingYardsPerGame",1],
-  ["TEAM SACKS","passing",1,"sacks",1],
-  ["INTERCEPTIONS","defensiveinterceptions",0,"interceptions",0],
-  ["PASSING TDS","passing",0,"passingTouchdowns",0]
+  ["PASSING OFFENSE","passing","0","netPassingYardsPerGame",1],
+  ["RUSHING OFFENSE","rushing","0","rushingYardsPerGame",1],
+  ["TEAM SACKS","passing","900","sacks",1],
+  ["INTERCEPTIONS","defensiveinterceptions","0","interceptions",0],
+  ["PASSING TDS","passing","0","passingTouchdowns",0]
 ];
 function requireValue(condition,error){if(!condition)throw Error(error);}
 const validNumeric=n=>typeof n==="number"&&Number.isFinite(n)&&n>=0;
@@ -65,11 +66,11 @@ export function buildNflPage2(base,leadersData,teamsData){
   requireValue(teams.length===32,"Expected verified NFL league-wide team statistics");
   requireValue(new Set(teams.map(x=>String(x.team?.id))).size===32,
     "Missing or duplicate NFL team statistics");
-  const panels=teamCards.map(([label,cat,index,field,decimals])=>{
+  const panels=teamCards.map(([label,cat,splitId,field,decimals])=>{
     const names=glossary.get(cat)||[],indexOfField=names.indexOf(field);
     requireValue(indexOfField>=0,"ESPN team metric not found: "+field);
     const rows=teams.map(x=>{
-      const row=(x.categories||[]).filter(c=>c.name===cat)[index];
+      const row=(x.categories||[]).find(c=>c.name===cat&&String(c.splitId)===splitId);
       const value=row?.values?.[indexOfField],number=Number(value);
       if(!validNumeric(number))return null;
       return {number,team:map.get(String(x.team.id)),reported:row.totals?.[indexOfField]};
