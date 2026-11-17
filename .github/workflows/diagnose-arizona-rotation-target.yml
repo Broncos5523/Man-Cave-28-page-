@@ -25,7 +25,7 @@ jobs:
                   data=urllib.request.urlopen(urllib.request.Request(
                       url,headers={'Cache-Control':'no-cache','User-Agent':'ManCaveArizonaReadinessQA/1.0'}),timeout=15).read()
                   if (b'window.__MC_PRODUCTION_BOARD="page4_arizona_cfb"' in data and
-                      b'<script src="/production/board-runtime.js"></script>' in data):
+                      b'<script src="/staging/board-runtime-ancestor.js"></script>' in data):
                       print('ARIZONA_NESTED_REAL_LIFECYCLE_DEPLOYED',len(data),flush=True)
                       break
                   print('NESTED_LIFECYCLE_NOT_YET_PUBLISHED',n+1,flush=True)
