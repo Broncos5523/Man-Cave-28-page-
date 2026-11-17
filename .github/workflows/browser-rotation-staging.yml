@@ -1,0 +1,24 @@
+name: Verify original 28-board Cloudflare rotation in Chromium (no TV changes)
+
+on:
+  push:
+    paths:
+      - cloud-28/tests/browser-rotation-staging.mjs
+      - .github/workflows/browser-rotation-staging.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Chromium for original rotation verification
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Verify first and second approved boards and 30-second switch
+        run: node cloud-28/tests/browser-rotation-staging.mjs
