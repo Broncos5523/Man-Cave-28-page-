@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {fields,leagueMeta,scoreboardFrom,standingsFrom,playersFrom} from "./yahoo-parser.mjs";
+import {fields,leagueMeta,gameKeyFrom,scoreboardFrom,standingsFrom,playersFrom} from "./yahoo-parser.mjs";
 test("unwrap Yahoo fields and league info",()=>{
  assert.equal(fields([[{name:"League"},{num_teams:"12"}],{current_week:"11"}]).name,"League");
  assert.deepEqual(leagueMeta({league:[[{name:"My League"},{current_week:"11"}],{num_teams:"12"}]}),
@@ -23,4 +23,10 @@ test("standings and roster distinguish missing from zero",()=>{
   {player_points:{total:"0.00"}}]}}});
  assert.equal(players.length,1); assert.equal(players[0].current_points,0);
  assert.equal(players[0].slot,"WR");
+});
+
+test("derive verified season-specific Yahoo game key from game/nfl",()=>{
+  const raw={fantasy_content:{game:[[{game_key:"469"},{game_id:"469"},{code:"nfl"}],{season:"2026"}]}};
+  assert.equal(gameKeyFrom(raw),"469");
+  assert.equal(gameKeyFrom({fantasy_content:{game:[[{game_key:"nfl"}]]}}),null);
 });
