@@ -44,8 +44,7 @@ jobs:
           with ZipFile("fantasy-cloud/original-v24.8.zip") as z:
               page=z.read("templates/dashboard.html").decode("utf-8")
           print("APPROVED_HTML_BYTES",len(page),flush=True)
-          print("APPROVED_REFERENCES",sorted(set(re.findall(r"/(?:api|static)/[A-Za-z0-9_.-]+",page)))[:35],flush=True)
-          print("DASHBOARD_FETCH_TARGETS",sorted(set(re.findall(r"fetch\\s*\\(\\s*['\\\"]([^'\\\"]+)",page)))[:20],flush=True)
+          assert "/api/data" in page, "Approved dashboard must read private Yahoo data contract"
           print("STATIC_FILES",sorted(n for n in z.namelist() if n.startswith("static/"))[:25],flush=True)
           PY
       - name: Cloudflare Worker dry run only - never deploy
