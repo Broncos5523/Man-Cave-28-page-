@@ -1,0 +1,51 @@
+name: Verify private Yahoo Fantasy Cloudflare staging (no deployment)
+on:
+  push:
+    paths:
+      - 'fantasy-edge/**'
+      - '.github/workflows/verify-fantasy-edge.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax and isolated contract tests
+        run: |
+          node --check fantasy-edge/worker.mjs
+          node --check fantasy-edge/yahoo-parser.mjs
+          node --test fantasy-edge/*.test.mjs
+      - name: Verify exact approved V24.8 asset bytes
+        run: |
+          python fantasy-edge/build_assets.py
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          base=Path("fantasy-edge/dist")
+          with ZipFile("fantasy-cloud/original-v24.8.zip") as z:
+              assert (base/"index.html").read_bytes()==z.read("templates/dashboard.html")
+              for name in ("stadium_night_bg.jpg","man_cave_fantasy_logo.png","fantasy_football_field.jpeg"):
+                  assert (base/"static"/name).read_bytes()==z.read("static/"+name)
+          print("PASS approved V24.8 board and all artwork identical")
+          PY
+      - name: Audit original V24.8 dashboard endpoint contract
+        run: |
+          python - <<'PY'
+          import re
+          from zipfile import ZipFile
+          with ZipFile("fantasy-cloud/original-v24.8.zip") as z:
+              page=z.read("templates/dashboard.html").decode("utf-8")
+          print("APPROVED_HTML_BYTES",len(page),flush=True)
+          assert "/api/data" in page, "Approved dashboard must read private Yahoo data contract"
+          print("STATIC_FILES",sorted(n for n in z.namelist() if n.startswith("static/"))[:25],flush=True)
+          PY
+      - name: Cloudflare Worker dry run only - never deploy
+        run: npx --yes wrangler@4 deploy --config fantasy-edge/wrangler.jsonc --dry-run --outdir ./_fantasy-edge-dry-run
