@@ -22,19 +22,23 @@ const createState=()=>{
 const team=(id,name,points)=>[[{team_key:"469.l.12345.t."+id},{team_id:String(id)},{name}],
   {team_points:{total:String(points)}}];
 const fixtures={
-  game:{fantasy_content:{game:[[{game_key:"469"},{code:"nfl"}],{season:"2026"}]}},
-  league:{fantasy_content:{league:[[{league_key:"469.l.12345"},{current_week:"11"},
-    {num_teams:"2"},{name:"Sample Two-Team League"}]]}},
-  scoreboard:{fantasy_content:{league:[{scoreboard:{matchups:{0:{
-    matchup:{teams:{0:{team:team(1,"Away",91.6)},1:{team:team(2,"Home",90.1)}}}}
-  }}}]}},
-  roster:{fantasy_content:{team:[{roster:{players:{0:{player:[
+  game:{game:[[{game_key:"469"},{code:"nfl"}],{season:"2026"}]},
+  league:{league:[[{league_key:"469.l.12345"},{current_week:"11"},
+    {num_teams:"2"},{name:"Sample Two-Team League"}]]},
+  scoreboard:{matchup:{teams:{
+    0:{team:team(1,"Away",91.6)},
+    1:{team:team(2,"Home",90.1)}
+  }}},
+  roster:{player:[
     [{player_key:"469.p.1"},{player_id:"1"},{name:{full:"Player One"}}],
-    {selected_position:{position:"QB"}},{player_points:{total:"17.2"}}]}}}}]}},
-  standings:{fantasy_content:{league:[{standings:{teams:{0:{team:[
+    {selected_position:{position:"QB"}},{player_points:{total:"17.2"}}
+  ]},
+  standings:{team:[
     [{team_key:"469.l.12345.t.1"},{team_id:"1"},{name:"Away"}],
-    {team_standings:{rank:"1",outcome_totals:{wins:"7",losses:"3"}}]}}}}}]}}
+    {team_standings:{rank:"1",outcome_totals:{wins:"7",losses:"3"}}}
+  ]}
 };
+
 test("Yahoo OAuth token exchange, verified current-season league lookup, roster and standings",async()=>{
   const orig=globalThis.fetch, urls=[];
   globalThis.fetch=async (input,options={})=>{
