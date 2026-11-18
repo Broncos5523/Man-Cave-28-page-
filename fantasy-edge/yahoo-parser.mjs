@@ -89,6 +89,13 @@ export function playersFrom(data) {
   }
   return [...result.values()];
 }
+export function gameKeyFrom(data) {
+  // Yahoo's game code (nfl) is not the season-specific numeric game key.
+  // For example, documentation represents league keys as 461.l.1000.
+  const raw=Array.from(named(data,"game"))[0];
+  const key=String(fields(raw).game_key||"");
+  return /^\d{2,5}$/.test(key)?key:null;
+}
 export function leagueMeta(data) {
   const f=fields(Array.from(named(data,"league"))[0]);
   return {name:String(f.name||"Yahoo Fantasy League"),
