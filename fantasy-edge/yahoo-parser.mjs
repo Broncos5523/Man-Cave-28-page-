@@ -4,7 +4,16 @@
  */
 export function fields(v) {
   if (v && !Array.isArray(v) && typeof v === "object") return v;
-  return Array.isArray(v) ? Object.assign({}, ...v.filter(x => x && typeof x === "object" && !Array.isArray(x))) : {};
+  if (!Array.isArray(v)) return {};
+  const out={};
+  // Yahoo team, player and league resources often start with an INNER array
+  // of metadata objects and then append points/standings as sibling objects.
+  // The older collector accidentally discarded that entire metadata array.
+  for (const item of v) {
+    if (Array.isArray(item)) Object.assign(out,fields(item));
+    else if (item && typeof item === "object") Object.assign(out,item);
+  }
+  return out;
 }
 export function* named(node, key) {
   if (node && typeof node === "object") {
