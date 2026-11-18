@@ -380,7 +380,14 @@ def setup_page(message="",error=False):
             else:
                 body+="<form action='/connect/yahoo' method='post'><button type='submit'>Connect Yahoo Fantasy</button></form>"
                 body+="<p>Credential format checks passed, but Yahoo may still reject an incorrect Client ID, an unmatched app redirect, or unprovisioned access.</p>"
-        else:body+="<p>Yahoo account authorized. Live data will appear when API access is provisioned.</p>"
+        else:
+            body+="<p>Yahoo account authorized. Live data will appear when API access is provisioned.</p>"
+            warnings=oauth_config_warnings()
+            if warnings:
+                body+="<p style='color:#ffd46a'>"+(" ".join(warnings))+"</p>"
+            else:
+                body+="<form action='/connect/yahoo' method='post'><button type='submit'>Reconnect Yahoo Fantasy</button></form>"
+                body+="<p>Use this after Yahoo enables access or after switching to a newly approved application. A successful OAuth callback securely replaces the existing authorization.</p>"
     if message:body+="<p class='message'>"+("ERROR: " if error else "")+str(message).replace("<","&lt;")+"</p>"
     return """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Man Cave Fantasy Cloud — Setup</title>
