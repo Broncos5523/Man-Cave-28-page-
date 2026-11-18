@@ -1,4 +1,4 @@
-import {leagueMeta,scoreboardFrom,standingsFrom,playersFrom} from "./yahoo-parser.mjs";
+import {leagueMeta,gameKeyFrom,scoreboardFrom,standingsFrom,playersFrom} from "./yahoo-parser.mjs";
 
 /* Isolated private Fantasy Worker: no public Yahoo proxy and no browser tokens. */
 const YAHOO_API="https://fantasysports.yahooapis.com/fantasy/v2";
@@ -256,7 +256,14 @@ export class FantasyState {
       const access=await this.accessToken();
       if(!access)return;
       const game=/^[a-z]{2,6}$/.test(this.env.YAHOO_GAME_KEY||"nfl")?(this.env.YAHOO_GAME_KEY||"nfl"):"nfl";
-      const prefix="/league/"+game+".l."+this.env.YAHOO_LEAGUE_ID;
+      let published=await this.state.storage.get("game-key-v1");
+      if(!published||published.code!==game||now()-published.at>21600){
+        const key=gameKeyFrom(await this.yahoo("/game/"+game,access));
+        if(!key)throw new Error("Yahoo current-season numeric game key missing");
+        published={code:game,key,at:now()};
+        await this.state.storage.put("game-key-v1",published);
+      }
+      const prefix="/league/"+published.key+".l."+this.env.YAHOO_LEAGUE_ID;
       const meta=leagueMeta(await this.yahoo(prefix,access));
       if(!meta.week)throw new Error("Yahoo current week missing");
       const matchups=scoreboardFrom(await this.yahoo(prefix+"/scoreboard;week="+meta.week,access));
