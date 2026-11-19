@@ -7,5 +7,6 @@
   "durable_objects": {"bindings": [{"name": "FANTASY_STATE", "class_name": "FantasyState"}]},
   "migrations": [{"tag": "fantasy-sqlite-v1", "new_sqlite_classes": ["FantasyState"]}],
   "triggers": {"crons": ["* * * * *"]},
-  "observability": {"enabled": false}
+  "observability": {"enabled": false},
+  "vars": {"PUBLIC_BASE_URL": "https://man-cave-fantasy-cloud.broncos5523.workers.dev/"}
 }
