@@ -49,6 +49,8 @@ jobs:
               body=err.read(3000).decode("utf-8","replace")
               kind="Cloudflare challenge" if ("Just a moment" in body or "cf-challenge" in body) else ("Cloudflare error" if "cloudflare" in body.lower() else "Other 403")
               print("SETUP_ROUTE HTTP",err.code,"RESPONSE_KIND",kind,flush=True)
+              print("SETUP_HEADERS", {k:err.headers.get(k) for k in ("Content-Type","Server","CF-Ray","Location","X-Content-Type-Options","Cache-Control")},flush=True)
+              print("SETUP_BODY_PREFIX",repr(body[:250]),flush=True)
               raise
           print("PASS: private setup form reachable",flush=True)
           PY
