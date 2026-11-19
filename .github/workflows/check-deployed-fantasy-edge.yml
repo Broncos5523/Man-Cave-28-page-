@@ -32,11 +32,23 @@ jobs:
                   status=response.status
               except urllib.error.HTTPError as err:status=err.code
               print("PRIVATE_ROUTE",path,"HTTP",status,flush=True)
+              if status==403:
+                  try:
+                      body=err.read(3000).decode("utf-8","replace")
+                      kind="Cloudflare challenge" if ("Just a moment" in body or "cf-challenge" in body) else ("Cloudflare error" if ("cloudflare" in body.lower() or "Error 10" in body) else ("App 403" if "forbidden" in body.lower() else "Other 403"))
+                      print("ROUTE_403_KIND",path,kind,flush=True)
+                  except Exception:pass
               assert status in (302,303,307,308,403),f"Unexpected private route HTTP {status} for {path}"
           print("PASS: dashboard, data API and artwork require a private session",flush=True)
-          with urllib.request.urlopen(base+"/setup",timeout=15) as response:
-              html=response.read(120000).decode("utf-8")
-              print("SETUP_ROUTE HTTP",response.status,"PRIVATE_FORM",("Private display passphrase" in html),flush=True)
-              assert response.status==200 and "Private display passphrase" in html
+          try:
+              with urllib.request.urlopen(base+"/setup",timeout=15) as response:
+                  html=response.read(120000).decode("utf-8")
+                  print("SETUP_ROUTE HTTP",response.status,"PRIVATE_FORM",("Private display passphrase" in html),flush=True)
+                  assert response.status==200 and "Private display passphrase" in html
+          except urllib.error.HTTPError as err:
+              body=err.read(3000).decode("utf-8","replace")
+              kind="Cloudflare challenge" if ("Just a moment" in body or "cf-challenge" in body) else ("Cloudflare error" if "cloudflare" in body.lower() else "Other 403")
+              print("SETUP_ROUTE HTTP",err.code,"RESPONSE_KIND",kind,flush=True)
+              raise
           print("PASS: private setup form reachable",flush=True)
           PY
