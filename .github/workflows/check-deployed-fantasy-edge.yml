@@ -1,0 +1,40 @@
+name: Check deployed private Fantasy Worker safely (no secrets, no changes)
+on:
+  push:
+    paths:
+      - .github/workflows/check-deployed-fantasy-edge.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check public health and private route guard
+        run: |
+          python - <<'PY'
+          import json,urllib.request,urllib.error
+          base="https://man-cave-fantasy-cloud.broncos5523.workers.dev"
+          req=urllib.request.Request(base+"/healthz",headers={"Accept":"application/json","User-Agent":"ManCaveFantasyHealth/1.0"})
+          with urllib.request.urlopen(req,timeout=18) as response:
+              info=json.load(response)
+              assert response.status==200
+          assert info.get("ok") is True and info.get("service")=="fantasy-edge"
+          print("PASS: Fantasy Worker publicly reachable",flush=True)
+          print("PRIVATE_CONFIGURATION_COMPLETE",bool(info.get("configured")),flush=True)
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs):return None
+          opener=urllib.request.build_opener(NoRedirect())
+          for path in ("/","/api/data","/api/status","/static/man_cave_fantasy_logo.png"):
+              try:
+                  response=opener.open(base+path,timeout=15)
+                  status=response.status
+              except urllib.error.HTTPError as err:status=err.code
+              assert status in (302,303,307,308),f"Private route exposed: {path} HTTP {status}"
+          print("PASS: dashboard, data API and artwork require a private session",flush=True)
+          with urllib.request.urlopen(base+"/setup",timeout=15) as response:
+              html=response.read(120000).decode("utf-8")
+              assert response.status==200 and "Private display passphrase" in html
+          print("PASS: private setup form reachable",flush=True)
+          PY
