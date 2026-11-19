@@ -44,7 +44,9 @@ jobs:
               with urllib.request.urlopen(urllib.request.Request(base+"/setup",headers={"User-Agent":"ManCaveFantasyHealth/1.0"}),timeout=15) as response:
                   html=response.read(120000).decode("utf-8")
                   print("SETUP_ROUTE HTTP",response.status,"PRIVATE_FORM",("Private display passphrase" in html),flush=True)
-                  assert response.status==200 and "Private display passphrase" in html
+                  print("SIGNED_FORM_PRESENT", "name='form_token'" in html,flush=True)
+                  print("FORM_LENGTH",len(html),flush=True)
+                  assert response.status==200 and "Private display passphrase" in html and "name='form_token'" in html
           except urllib.error.HTTPError as err:
               body=err.read(3000).decode("utf-8","replace")
               kind="Cloudflare challenge" if ("Just a moment" in body or "cf-challenge" in body) else ("Cloudflare error" if "cloudflare" in body.lower() else "Other 403")
