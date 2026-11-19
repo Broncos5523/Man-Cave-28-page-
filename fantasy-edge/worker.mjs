@@ -62,14 +62,30 @@ const base=e=>String(e.PUBLIC_BASE_URL||"").replace(/\/$/,"");
 const callback=e=>base(e)+"/oauth/yahoo/callback";
 const stateStub=e=>e.FANTASY_STATE.get(e.FANTASY_STATE.idFromName("private-yahoo-fantasy-v1"));
 function safeText(s){return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");}
-function setupPage({unlocked=false,config=false,connected=false,error="",detail=""}={}){
+// Signed, session-bound form permits support Safari/in-app browsers with unusual
+// Origin/Sec-Fetch-Site metadata without disabling CSRF protection.
+async function formSubject(request,env,action){
+  return action==="unlock" ? "form:unlock" : "form:connect:"+await hmac(cookie(request,cookies.session),env.FANTASY_SESSION_SECRET);
+}
+async function formPermit(request,env,action){
+  if(!env.FANTASY_SESSION_SECRET)return "";
+  return issue(await formSubject(request,env,action),env.FANTASY_SESSION_SECRET,1800);
+}
+async function validFormPermit(form,request,env,action){
+  if(!env.FANTASY_SESSION_SECRET)return false;
+  const signed=String(form.get("form_token")||"");
+  if(signed.length>1000)return false;
+  return await verify(signed,env.FANTASY_SESSION_SECRET)===await formSubject(request,env,action);
+}
+function setupPage({unlocked=false,config=false,connected=false,error="",detail="",formToken=""}={}){
+  const permit="<input type='hidden' name='form_token' value='"+formToken+"'>";
   const fields=unlocked?(
     !config ? "<p>The private Cloudflare settings are not configured. Add Worker secrets before connecting Yahoo.</p>" :
     "<p>"+(connected?"Yahoo account previously authorized. Reconnect after approval if needed.":"Yahoo authorization is not connected yet.")+"</p>"+
-    "<form method='post' action='/connect/yahoo'><button type='submit'>"+(connected?"Reconnect Yahoo Fantasy":"Connect Yahoo Fantasy")+"</button></form>"+
+    "<form method='post' action='/connect/yahoo'>"+permit+"<button type='submit'>"+(connected?"Reconnect Yahoo Fantasy":"Connect Yahoo Fantasy")+"</button></form>"+
     "<p class='muted'>This uses Yahoo's official consent screen. Never paste credentials or tokens into a chat.</p>"+
     "<p><a href='/api/status'>Private connection status</a> · <a href='/'>Original V24.8 dashboard</a></p>"
-  ):"<form method='post' action='/unlock'><label>Private display passphrase<input type='password' name='pin' required autocomplete='off'></label><button type='submit'>Unlock Fantasy Board</button></form>";
+  ):"<form method='post' action='/unlock'>"+permit+"<label>Private display passphrase<input type='password' name='pin' required autocomplete='off'></label><button type='submit'>Unlock Fantasy Board</button></form>";
   return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Man Cave Fantasy — Private Setup</title><style>
   body{font:16px system-ui;background:#071322;color:#f5f8ff;display:grid;place-items:center;min-height:100vh;margin:0}
   main{width:min(90vw,520px);background:#10223d;border:1px solid #476083;border-radius:18px;padding:28px;box-sizing:border-box}
@@ -87,22 +103,21 @@ function redirect(url,extraCookie){
   if(extraCookie)h.append("Set-Cookie",extraCookie);
   return new Response(null,{status:303,headers:h});
 }
-function sameOrigin(request){
-  const origin=request.headers.get("Origin");
-  return (!origin || origin===new URL(request.url).origin)
-    && request.headers.get("Sec-Fetch-Site")!=="cross-site";
-}
-async function handler(request,env,ctx){
+ async function handler(request,env,ctx){
   const u=new URL(request.url),path=u.pathname;
   if(path==="/healthz"&&request.method==="GET")
     return json({ok:true,service:"fantasy-edge",private:true,configured:configured(env)});
   if(path==="/unlock"&&request.method==="POST"){
-    if(!sameOrigin(request))return json({error:"cross-origin form rejected"},403);
     if(Number(request.headers.get("Content-Length")||0)>2048)return json({error:"too large"},413);
-    const form=await request.formData(),pin=String(form.get("pin")||"");
+    const form=await request.formData();
+    if(!await validFormPermit(form,request,env,"unlock"))
+      return html(setupPage({error:"Private form expired. Reopen the setup page and try again.",
+        formToken:await formPermit(request,env,"unlock")}),403);
+    const pin=String(form.get("pin")||"");
     const check=await stateStub(env).fetch("https://internal/auth-check",{method:"POST",
       body:JSON.stringify({pin,ip:request.headers.get("CF-Connecting-IP")||"unknown"})});
-    if(!check.ok)return html(setupPage({error:check.status===429?"Too many attempts; try again later.":"Passphrase not accepted."}),check.status);
+    if(!check.ok)return html(setupPage({error:check.status===429?"Too many attempts; try again later.":"Passphrase not accepted.",
+      formToken:await formPermit(request,env,"unlock")}),check.status);
     return redirect("/setup",setCookie(cookies.session,await issue("fantasy-owner",env.FANTASY_SESSION_SECRET,7*86400),7*86400));
   }
   const unlocked=env.FANTASY_SESSION_SECRET && (await verify(cookie(request,cookies.session),env.FANTASY_SESSION_SECRET))==="fantasy-owner";
@@ -111,25 +126,34 @@ async function handler(request,env,ctx){
     const got=u.searchParams.get("state")||"";
     const expected=await verify(cookie(request,cookies.state),env.FANTASY_SESSION_SECRET);
     if(!expected || expected!==got || u.searchParams.has("error") || !u.searchParams.get("code"))
-      return html(setupPage({unlocked:true,config:true,error:"Yahoo consent failed or OAuth state did not match."}),400);
+      return html(setupPage({unlocked:true,config:true,error:"Yahoo consent failed or OAuth state did not match.",
+        formToken:await formPermit(request,env,"connect")}),400);
     const result=await stateStub(env).fetch("https://internal/token-exchange",{method:"POST",
       body:JSON.stringify({code:u.searchParams.get("code"),redirect_uri:callback(env)})});
-    if(!result.ok)return html(setupPage({unlocked:true,config:true,error:"Yahoo token exchange failed; check app credentials and approved callback."}),502);
+    if(!result.ok)return html(setupPage({unlocked:true,config:true,error:"Yahoo token exchange failed; check app credentials and approved callback.",
+      formToken:await formPermit(request,env,"connect")}),502);
     return redirect("/setup",setCookie(cookies.state,"",0));
   }
   if(!unlocked){
-    if(request.method==="GET"&&path==="/setup")return html(setupPage());
+    if(request.method==="GET"&&path==="/setup")return html(setupPage({
+      formToken:await formPermit(request,env,"unlock")}));
     return redirect("/setup");
   }
   if(path==="/setup"&&request.method==="GET"){
     const status=await stateStub(env).fetch("https://internal/status");
     const summary=await status.json();
-    return html(setupPage({unlocked:true,config:configured(env),connected:summary.connected}));
+    return html(setupPage({unlocked:true,config:configured(env),connected:summary.connected,
+      formToken:await formPermit(request,env,"connect")}));
   }
   if(path==="/connect/yahoo"&&request.method==="POST"){
-    if(!sameOrigin(request))return json({error:"cross-origin form rejected"},403);
+    if(Number(request.headers.get("Content-Length")||0)>2048)return json({error:"too large"},413);
+    const form=await request.formData();
+    if(!await validFormPermit(form,request,env,"connect"))
+      return html(setupPage({unlocked:true,config:configured(env),error:"Private form expired. Reopen setup and try again.",
+        formToken:await formPermit(request,env,"connect")}),403);
     if(!configured(env) || new URL(request.url).origin!==base(env))
-      return html(setupPage({unlocked:true,error:"Cloudflare Worker settings or public URL are incomplete."}),503);
+      return html(setupPage({unlocked:true,error:"Cloudflare Worker settings or public URL are incomplete.",
+        formToken:await formPermit(request,env,"connect")}),503);
     const state=random();
     const auth=new URL(AUTHORIZE_URL);
     for(const [k,v] of Object.entries({client_id:env.YAHOO_CLIENT_ID,redirect_uri:callback(env),
