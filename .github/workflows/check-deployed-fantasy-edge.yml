@@ -31,10 +31,12 @@ jobs:
                   response=opener.open(base+path,timeout=15)
                   status=response.status
               except urllib.error.HTTPError as err:status=err.code
-              assert status in (302,303,307,308),f"Private route exposed: {path} HTTP {status}"
+              print("PRIVATE_ROUTE",path,"HTTP",status,flush=True)
+              assert status in (302,303,307,308,403),f"Unexpected private route HTTP {status} for {path}"
           print("PASS: dashboard, data API and artwork require a private session",flush=True)
           with urllib.request.urlopen(base+"/setup",timeout=15) as response:
               html=response.read(120000).decode("utf-8")
+              print("SETUP_ROUTE HTTP",response.status,"PRIVATE_FORM",("Private display passphrase" in html),flush=True)
               assert response.status==200 and "Private display passphrase" in html
           print("PASS: private setup form reachable",flush=True)
           PY
