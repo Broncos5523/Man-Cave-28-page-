@@ -8,5 +8,6 @@
   "migrations": [{"tag": "fantasy-sqlite-v1", "new_sqlite_classes": ["FantasyState"]}],
   "triggers": {"crons": ["* * * * *"]},
   "observability": {"enabled": false},
+  "keep_vars": true,
   "vars": {"PUBLIC_BASE_URL": "https://man-cave-fantasy-cloud.broncos5523.workers.dev/"}
 }
