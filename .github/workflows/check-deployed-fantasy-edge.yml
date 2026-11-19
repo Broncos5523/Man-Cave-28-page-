@@ -28,7 +28,7 @@ jobs:
           opener=urllib.request.build_opener(NoRedirect())
           for path in ("/","/api/data","/api/status","/static/man_cave_fantasy_logo.png"):
               try:
-                  response=opener.open(base+path,timeout=15)
+                  response=opener.open(urllib.request.Request(base+path,headers={"User-Agent":"ManCaveFantasyHealth/1.0"}),timeout=15)
                   status=response.status
               except urllib.error.HTTPError as err:status=err.code
               print("PRIVATE_ROUTE",path,"HTTP",status,flush=True)
@@ -41,7 +41,7 @@ jobs:
               assert status in (302,303,307,308,403),f"Unexpected private route HTTP {status} for {path}"
           print("PASS: dashboard, data API and artwork require a private session",flush=True)
           try:
-              with urllib.request.urlopen(base+"/setup",timeout=15) as response:
+              with urllib.request.urlopen(urllib.request.Request(base+"/setup",headers={"User-Agent":"ManCaveFantasyHealth/1.0"}),timeout=15) as response:
                   html=response.read(120000).decode("utf-8")
                   print("SETUP_ROUTE HTTP",response.status,"PRIVATE_FORM",("Private display passphrase" in html),flush=True)
                   assert response.status==200 and "Private display passphrase" in html
