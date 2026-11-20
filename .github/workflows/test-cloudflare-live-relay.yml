@@ -5,6 +5,8 @@ on:
     paths:
       - cloud-28/cloudflare-live-proxy.mjs
       - cloud-28/cloudflare-public-feed-shim.js
+      - cloud-28/staging-local-state.js
+      - cloud-28/tests/request-budget.test.mjs
       - cloud-28/wrangler-live-relay-test.jsonc
       - cloud-28/tests/worker-proxy.test.mjs
       - cloud-28/build_cloudflare_visual_staging.py
@@ -33,7 +35,7 @@ jobs:
           assert len(board_files)==28,len(board_files)
           for p in board_files:
               content=p.read_bytes()
-              assert content.count(b'/staging/espn-fetch-shim.js?v=preproxied-r3')==1,p
+              assert content.count(b'/staging/espn-fetch-shim.js?v=public-cache-r1')==1,p
               assert content.count(b'/staging/board-standalone-host.js?v=standalone-r1')==1,p
               assert content.count(b'/production/spotlight-state.js')==1,p
               assert b"data:image/" not in content.lower(),p
@@ -56,6 +58,8 @@ jobs:
           assert "/staging/boards.json" in player
           assert "MCSpotlightState" in (root/"production/spotlight-state.js").read_text()
           assert "/staging/player.js" in page
+          assert "/staging/local-state.js?v=local-r1" in page
+          assert (root/"staging/local-state.js").is_file()
           assert (root/"staging/tv3.html").is_file()
           tv3=(root/"staging/tv3-remote.js").read_text()
           assert "app.database().ref('screens/third').on('value'" in tv3
@@ -84,6 +88,6 @@ jobs:
           print("PASS 28/28 unchanged Gold Master board staging copies load controlled public feed shim",flush=True)
           PY
       - name: Node tests for strict allowlist, no token forwarding and static fallback
-        run: node --test cloud-28/tests/worker-proxy.test.mjs
+        run: node --test cloud-28/tests/worker-proxy.test.mjs cloud-28/tests/request-budget.test.mjs
       - name: Cloudflare Wrangler dry-run only (never deploy)
         run: npx --yes wrangler@4 deploy --config cloud-28/wrangler-live-relay-test.jsonc --dry-run --outdir ./_migration-dry-run

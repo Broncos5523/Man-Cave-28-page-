@@ -16,6 +16,64 @@
     'www.mlbstatic.com','img.mlbstatic.com'
   ]);
   const native=window.fetch.bind(window);
+
+  // Public-source browser cache: fresh responses avoid Worker invocations.
+  const memo=new Map(),pending=new Map(),prefix='mc-tv-public-feed-v1:';
+  window.__MC_STAGING_FEED_CACHE_STATS__={hit:0,network:0};
+  const stat=window.__MC_STAGING_FEED_CACHE_STATS__;
+  function seconds(path){
+    if(path.startsWith('/migration-api/nfl/season-stats?'))return 90;
+    if(!path.startsWith('/proxy?'))return 0;
+    try{
+      const u=new URL(new URL(path,'https://unused.invalid').searchParams.get('url'));
+      if(!allow.has(u.hostname)||/\.(?:png|jpe?g|webp|gif|svg)$/i.test(u.pathname))return 0;
+      if(/\/(?:scoreboard|summary|playbyplay|play-by-play|gamecenter)(?:\/|$)/i.test(u.pathname))return 20;
+      if(/\/(?:standings|rankings|statistics|stats|athletes|leaders|roster)(?:\/|$)/i.test(u.pathname))return 90;
+      return 35;
+    }catch{return 0;}
+  }
+  function cachedPublic(path,init,input){
+    const ttl=seconds(path);
+    const headers=new Headers(init?.headers||input?.headers||{});
+    const mode=init?.cache||input?.cache;
+    if(!ttl||String(init?.method||input?.method||'GET').toUpperCase()!=='GET'||
+       mode==='no-store'||mode==='reload'||
+       init?.credentials==='include'||input?.credentials==='include'||
+       headers.has('Authorization')||headers.has('Cookie')||
+       headers.has('X-API-Key'))
+      return native(path,init);
+    const key=prefix+path;
+    let item=memo.get(key);
+    if(!item)try{item=JSON.parse(window.sessionStorage?.getItem(key)||'null');}catch{}
+    if(item&&item.body&&item.until>Date.now()){
+      stat.hit++;memo.set(key,item);
+      return Promise.resolve(new Response(item.body,{status:200,headers:item.headers}));
+    }
+    memo.delete(key);
+    try{window.sessionStorage?.removeItem(key);}catch{}
+    if(pending.has(key))return pending.get(key).then(r=>r.clone());
+    stat.network++;
+    const task=native(path,init).then(r=>{
+      if(r.ok&&/^(?:application\/json|[^;]+\+json)(?:;|$)/i.test(r.headers.get('Content-Type')||'')&&
+         !/no-store|private/i.test(r.headers.get('Cache-Control')||'')&&
+         !r.headers.has('Set-Cookie')&&
+         Number(r.headers.get('Content-Length')||0)<=150000){
+        r.clone().text().then(body=>{
+          if(body.length>150000)return;
+          const headers={};
+          for(const name of ['Content-Type','X-Man-Cave-Contract','X-Man-Cave-Data-Source']){
+            const v=r.headers.get(name);if(v)headers[name]=v;
+          }
+          const entry={body,headers,until:Date.now()+ttl*1000};
+          memo.set(key,entry);
+          try{window.sessionStorage?.setItem(key,JSON.stringify(entry));}catch{}
+        }).catch(()=>{});
+      }
+      return r;
+    }).finally(()=>pending.delete(key));
+    pending.set(key,task);return task.then(r=>r.clone());
+  }
+
   window.fetch=function(input,init){
     const raw=typeof input==='string'?input:(input&&typeof input.url==='string'?input.url:'');
     // The approved Gold Master calls proxied() BEFORE fetch(), producing
@@ -30,7 +88,7 @@
         const match=core.hostname==='sports.core.api.espn.com'&&
           /^\/v2\/sports\/football\/leagues\/nfl\/seasons\/(\d{4})\/types\/2\/athletes\/(\d{5,10})\/statistics(?:\/0)?\/?$/.exec(core.pathname);
         if(match){
-          return native('/migration-api/nfl/season-stats?season='+encodeURIComponent(match[1])+
+          return cachedPublic('/migration-api/nfl/season-stats?season='+encodeURIComponent(match[1])+
             '&athlete='+encodeURIComponent(match[2])+'&team=7',init);
         }
       }catch(e){/* Leave unrelated traffic unchanged. */}
@@ -45,14 +103,15 @@
         if(board[1]==='page4_broncos'&&url.hostname==='sports.core.api.espn.com'){
           const match=/^\/v2\/sports\/football\/leagues\/nfl\/seasons\/(\d{4})\/types\/2\/athletes\/(\d{5,10})\/statistics(?:\/0)?$/.exec(url.pathname);
           if(match){
-            return native('/migration-api/nfl/season-stats?season='+encodeURIComponent(match[1])+'&athlete='+encodeURIComponent(match[2])+'&team=7',init);
+            return cachedPublic('/migration-api/nfl/season-stats?season='+encodeURIComponent(match[1])+'&athlete='+encodeURIComponent(match[2])+'&team=7',init);
           }
         }
         if(allow.has(url.hostname)){
-          return native('/proxy?url='+encodeURIComponent(url.href),init);
+          return cachedPublic('/proxy?url='+encodeURIComponent(url.href),init);
         }
       }catch(e){/* fall through to existing fetch semantics */}
     }
+    if(raw&&raw.startsWith('/proxy?'))return cachedPublic(raw,init,input);
     return native(input,init);
   };
   window.__MC_CLOUDFLARE_PUBLIC_FEED_RELAY__='staging-only';
