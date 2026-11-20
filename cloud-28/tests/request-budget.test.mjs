@@ -35,7 +35,11 @@ test('non-GET and authenticated requests bypass cache',async()=>{
  await w.fetch(url,{method:'POST'});await w.fetch(url,{method:'POST'});
  await w.fetch(url,{headers:{Authorization:'Bearer test'}});
  await w.fetch(url,{headers:{Authorization:'Bearer test'}});
- assert.equal(calls,4);
+ await w.fetch(url,{cache:'no-store'});
+ await w.fetch(url,{cache:'no-store'});
+ await w.fetch(url,{credentials:'include'});
+ await w.fetch(url,{credentials:'include'});
+ assert.equal(calls,8);
 });
 test('local state and heartbeat match existing stateless Worker response',async()=>{
  let hits=0;
@@ -43,7 +47,11 @@ test('local state and heartbeat match existing stateless Worker response',async(
  const location={origin:'https://demo.test',href:'https://demo.test/staging/player.html'};
  runInNewContext(state,{window,location,URL,Response,Promise});
  assert.equal((await (await window.fetch('/staging/api/state')).json()).playback.constructor.name,'Object');
- assert.equal((await (await window.fetch('/staging/api/heartbeat',{method:'POST'})).json()).ok,true);
+ assert.equal((await (await window.fetch('/staging/api/heartbeat',{method:'POST',
+   headers:{'Content-Type':'application/json'},body:'{"board":"page1_nfl"}'})).json()).ok,true);
+ assert.equal((await window.fetch('/staging/api/state',{method:'POST'})).status,415);
+ assert.equal((await window.fetch('/staging/api/heartbeat',{method:'POST',
+   headers:{'Content-Type':'application/json'},body:'not-json'})).status,400);
  assert.equal(hits,0);
  await window.fetch('/staging/boards.json');assert.equal(hits,1);
 });
@@ -51,4 +59,32 @@ test('staging only changes transport, not original 30-second rotation',()=>{
  assert.match(build,/frame\.src='\/staging\/boards\/'\+encodeURIComponent\(board\.id\)/);
  assert.match(build,/const DUR=30000/);
  assert.match(build,/local-state\.js\?v=local-r1/);
+});
+
+
+test('failed upstream data never gets saved as a successful replay',async()=>{
+ let hits=0;
+ const window={sessionStorage:storage,fetch:async()=>{
+   hits++;
+   return new Response('{"error":"unavailable"}',{status:503,headers:{'Content-Type':'application/json'}});
+ }};
+ map.clear();
+ runInNewContext(shim,{window,location:{pathname:'/staging/boards/page1_nba'},URL,Response,Headers,Date:FakeDate,encodeURIComponent});
+ assert.equal((await window.fetch(url)).status,503);
+ assert.equal((await window.fetch(url)).status,503);
+ assert.equal(hits,2);
+});
+test('concurrent requests coalesce within a single board',async()=>{
+ let hits=0;
+ const window={sessionStorage:storage,fetch:async()=>{
+  hits++;await new Promise(r=>setTimeout(r,15));
+  return new Response('{"games":[]}',{headers:{'Content-Type':'application/json','Cache-Control':'public'}});
+ }};
+ map.clear();
+ runInNewContext(shim,{window,location:{pathname:'/staging/boards/page3_nfl'},URL,Response,Headers,Date:FakeDate,encodeURIComponent});
+ const [a,b,c]=await Promise.all([window.fetch(url),window.fetch(url),window.fetch(url)]);
+ assert.equal((await a.json()).games.length,0);
+ assert.equal((await b.json()).games.length,0);
+ assert.equal((await c.json()).games.length,0);
+ assert.equal(hits,1);
 });
