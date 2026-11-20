@@ -5,6 +5,8 @@ on:
     paths:
       - cloud-28/cloudflare-live-proxy.mjs
       - cloud-28/cloudflare-public-feed-shim.js
+      - cloud-28/staging-local-state.js
+      - cloud-28/tests/request-budget.test.mjs
       - cloud-28/wrangler-live-relay-test.jsonc
       - cloud-28/tests/worker-proxy.test.mjs
       - cloud-28/build_cloudflare_visual_staging.py
