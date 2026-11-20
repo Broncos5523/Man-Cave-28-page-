@@ -34,8 +34,13 @@
   }
   function cachedPublic(path,init,input){
     const ttl=seconds(path);
+    const headers=new Headers(init?.headers||input?.headers||{});
+    const mode=init?.cache||input?.cache;
     if(!ttl||String(init?.method||input?.method||'GET').toUpperCase()!=='GET'||
-       init?.credentials==='include'||(init?.headers&&new Headers(init.headers).has('Authorization')))
+       mode==='no-store'||mode==='reload'||
+       init?.credentials==='include'||input?.credentials==='include'||
+       headers.has('Authorization')||headers.has('Cookie')||
+       headers.has('X-API-Key'))
       return native(path,init);
     const key=prefix+path;
     let item=memo.get(key);
@@ -49,8 +54,9 @@
     if(pending.has(key))return pending.get(key).then(r=>r.clone());
     stat.network++;
     const task=native(path,init).then(r=>{
-      if(r.ok&&/json/i.test(r.headers.get('Content-Type')||'')&&
-         !/no-store/i.test(r.headers.get('Cache-Control')||'')&&
+      if(r.ok&&/^(?:application\/json|[^;]+\+json)(?:;|$)/i.test(r.headers.get('Content-Type')||'')&&
+         !/no-store|private/i.test(r.headers.get('Cache-Control')||'')&&
+         !r.headers.has('Set-Cookie')&&
          Number(r.headers.get('Content-Length')||0)<=150000){
         r.clone().text().then(body=>{
           if(body.length>150000)return;
