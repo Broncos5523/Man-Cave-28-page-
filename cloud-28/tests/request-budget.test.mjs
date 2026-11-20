@@ -45,7 +45,7 @@ test('local state and heartbeat match existing stateless Worker response',async(
  let hits=0;
  const window={fetch:async()=>{hits++;return new Response('remote');}};
  const location={origin:'https://demo.test',href:'https://demo.test/staging/player.html'};
- runInNewContext(state,{window,location,URL,Response,Promise});
+ runInNewContext(state,{window,location,URL,Response,Headers,Promise});
  assert.equal((await (await window.fetch('/staging/api/state')).json()).playback.constructor.name,'Object');
  assert.equal((await (await window.fetch('/staging/api/heartbeat',{method:'POST',
    headers:{'Content-Type':'application/json'},body:'{"board":"page1_nfl"}'})).json()).ok,true);
