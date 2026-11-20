@@ -80,7 +80,7 @@ def make_index(boards):
         bid=item["id"]
         title=str(item.get("name") or item.get("title") or bid.replace("_"," ").title())
         links.append(
-            '<a href="/staging/boards/'+bid+'.html" target="_blank" rel="noopener">'
+            '<a href="/staging/boards/'+bid+'" target="_blank" rel="noopener">'
             '<span>'+str(index).zfill(2)+'</span>'+html.escape(title)+
             ' <small>'+html.escape(bid)+'</small></a>'
         )
@@ -220,7 +220,7 @@ def main():
             scripts=(
                 b'<script src="/production/spotlight-state.js"></script>'
                 b'<script src="/staging/board-standalone-host.js?v=standalone-r1"></script>'
-                b'<script src="/staging/espn-fetch-shim.js?v=preproxied-r3"></script>'
+                b'<script src="/staging/espn-fetch-shim.js?v=public-cache-r1"></script>'
             )
             if b'/staging/espn-fetch-shim.js' in response:
                 raise RuntimeError("Duplicate Cloudflare preview shim: "+bid)
@@ -245,7 +245,10 @@ def main():
  window.__MC_STAGING_ROTATION__=true;
 })();
 </script>"""
-        player_html=player_html.replace(anchor,mode_script+'<script defer src="/staging/player.js"></script>')
+        player_html=player_html.replace(anchor,mode_script+
+            '<script src="/staging/local-state.js?v=local-r1"></script>'+
+            '<script defer src="/staging/player.js"></script>')
+        save_binary(STAGE/"local-state.js",(HERE/"staging-local-state.js").read_bytes())
         save_binary(STAGE/"player.html",player_html.encode())
         # Firebase TV3 receiver is separated from the ordinary rotation preview.
         # It listens to existing screens/third assignments but never writes
@@ -266,7 +269,7 @@ def main():
 """
         remote=remote[:start]+monitor+remote[stop:]
         old="/production/board/'+encodeURIComponent(desired)+'?tv3=hold"
-        replacement="/staging/boards/'+encodeURIComponent(desired)+'.html?tv3=hold"
+        replacement="/staging/boards/'+encodeURIComponent(desired)+'?tv3=hold"
         if remote.count(old)!=1:
             raise RuntimeError("TV3 board selection URL changed")
         remote=remote.replace(old,replacement)
@@ -295,7 +298,7 @@ def main():
             ("'/production/api/state'","'/staging/api/state'"),
             ("'/production/api/heartbeat'","'/staging/api/heartbeat'"),
             ("frame.src='/production/board/'+encodeURIComponent(board.id)",
-             "frame.src='/staging/boards/'+encodeURIComponent(board.id)+'.html'")
+             "frame.src='/staging/boards/'+encodeURIComponent(board.id)")
         ]
         for old,new in substitutions:
             if old not in player_js:
