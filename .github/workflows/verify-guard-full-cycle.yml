@@ -1,0 +1,40 @@
+name: Validate guarded 28-page rotation on isolated Cloudflare Preview
+on:
+  push:
+    branches: [fix/redsox-p3-null-root-20261122]
+    paths:
+      - .github/workflows/verify-guard-full-cycle.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  complete-cycle:
+    if: github.ref == 'refs/heads/fix/redsox-p3-null-root-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Chromium on hosted test runner only
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Create exact original full-cycle test pointing only to guarded Preview
+        shell: bash
+        run: |
+          sed 's@https://man-cave-28-page.broncos5523.workers.dev@https://redsox-guard-man-cave-28-page.broncos5523.workers.dev@g;s@full-28-board-rotation.json@guard-full-28-board-rotation.json@g;s@cycle-step-@guard-cycle-step-@g;s@cycle-error.png@guard-cycle-error.png@g' \
+            cloud-28/tests/browser-full-cycle.mjs > cloud-28/tests/guard-full-cycle.tmp.mjs
+          grep -q 'redsox-guard-man-cave-28-page.broncos5523.workers.dev' cloud-28/tests/guard-full-cycle.tmp.mjs
+          ! grep -q "'https://man-cave-28-page.broncos5523.workers.dev'" cloud-28/tests/guard-full-cycle.tmp.mjs
+      - name: Watch all 28 original 30-second slots, including error-free Red Sox and wraparound
+        run: node cloud-28/tests/guard-full-cycle.tmp.mjs
+      - name: Save complete rotation log and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: redsox-guard-28-page-rotation
+          retention-days: 10
+          if-no-files-found: ignore
+          path: |
+            guard-full-28-board-rotation.json
+            guard-cycle-step-*.png
+            guard-cycle-error.png
