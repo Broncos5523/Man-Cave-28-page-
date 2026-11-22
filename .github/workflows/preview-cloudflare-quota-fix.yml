@@ -67,7 +67,29 @@ jobs:
           # Cloudflare's Preview command isolates branch code/resources;
           # never use "wrangler deploy" or "wrangler versions deploy".
           npx --yes wrangler@latest preview --config cloud-28/wrangler-quota-preview.jsonc --name pr-2 --json > "$RUNNER_TEMP/quota-preview.json"
-          preview_url="$(jq -er '.preview.urls[0]' "$RUNNER_TEMP/quota-preview.json")"
+          # Wrangler can print a startup banner before JSON; do not assume
+          # the first byte is an opening brace.
+          preview_url="$(python - "$RUNNER_TEMP/quota-preview.json" <<'PY'
+          import json,re,sys
+          from pathlib import Path
+          raw=Path(sys.argv[1]).read_text(errors='replace')
+          urls=[]
+          for start in (m.start() for m in re.finditer(r'\\{',raw)):
+              try:
+                  doc,_=json.JSONDecoder().raw_decode(raw[start:])
+                  urls=doc.get('preview',{}).get('urls',[])
+                  if urls:break
+              except (json.JSONDecodeError,AttributeError,TypeError):pass
+          if not urls:
+              urls=re.findall(r'https://[A-Za-z0-9.-]+\\.workers\\.dev(?:/[^\\s]*)?',raw)
+          urls=[u.rstrip('/').rstrip(',.') for u in urls if 'workers.dev' in u]
+          if not urls:
+              # Never echo arbitrary CLI content or tokens to public logs.
+              print('Cloudflare reported no Preview URL; inspect the Wrangler output format',file=sys.stderr)
+              sys.exit(2)
+          print(urls[0])
+          PY
+          )"
           case "$preview_url" in
             https://*.workers.dev|https://*.workers.dev/) ;;
             *) echo "Unexpected Preview URL"; exit 1;;
