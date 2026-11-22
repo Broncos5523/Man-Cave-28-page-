@@ -29,6 +29,15 @@ STAGING_HELPER = (
     b"  };"
 )
 
+# The approved Red Sox P3 observer sometimes receives a detached IMG node.
+# parentNode is null during an asynchronous mutation callback, and passing null
+# to proxyImages() causes the legacy $ helper to throw. Use the document as the
+# existing fallback, only in the cloned staging runtime. No rendered DOM, stats,
+# event frequency or approved Gold Master bytes are changed.
+REDSOX_RUNTIME = "runtime_redsox_p3_v7t.js"
+REDSOX_DETACHED_IMG_ORIGINAL = b"if(node.tagName==='IMG')proxyImages(node.parentNode);"
+REDSOX_DETACHED_IMG_GUARDED = b"if(node.tagName==='IMG')proxyImages(node.parentNode||document);"
+
 # Rewrite only named JavaScript references in generated STAGING board HTML.
 # No JS prototype overrides, DOM watchers, injected widgets, CSS or HTML art.
 RUNTIME_REF = re.compile(
@@ -50,6 +59,11 @@ def clone_staging_runtimes(output: Path):
         if count > 1:
             raise RuntimeError(f"Unexpected multiple imageURL helpers: {path.name}")
         updated = original.replace(ORIGINAL_HELPER, STAGING_HELPER) if count else original
+        if path.name == REDSOX_RUNTIME:
+            if updated.count(REDSOX_DETACHED_IMG_ORIGINAL) != 1:
+                raise RuntimeError("Red Sox observer source anchor changed; refuse staging patch")
+            updated = updated.replace(REDSOX_DETACHED_IMG_ORIGINAL,
+                                      REDSOX_DETACHED_IMG_GUARDED, 1)
         if count:
             replaced += 1
         (dest / path.name).write_bytes(updated)
