@@ -1,0 +1,35 @@
+name: Post-release production image and Cloudflare rate audit (read-only)
+on:
+  push:
+    branches: [release/cloudflare-quota-20261122]
+    paths:
+      - .github/workflows/production-traffic-audit.yml
+permissions:
+  contents: read
+jobs:
+  verify-live:
+    if: github.ref == 'refs/heads/release/cloudflare-quota-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Chromium on GitHub runner
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Measure two production NFL boards and count Cloudflare proxies
+        run: node cloud-28/tests/production-traffic-check.mjs
+      - name: Read post-release Worker request volume without mutations
+        if: always()
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python cloud-28/tests/cloudflare-usage-readonly.py
+      - name: Save live rollout evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-traffic-verification
+          retention-days: 14
+          if-no-files-found: ignore
+          path: production-image-traffic-check.json
