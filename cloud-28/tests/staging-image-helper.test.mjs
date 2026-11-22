@@ -36,7 +36,13 @@ test('all cloned runtimes preserve the original outside of exact image routing h
        assert.ok(!original.includes(safe),'Approved original Red Sox must remain unchanged');
        reverted=reverted.replace(safe,prior);
      }
-     assert.equal(reverted,original);
+     if(reverted!==original){
+       let diff=0;
+       while(diff<Math.min(reverted.length,original.length)&&reverted[diff]===original[diff])diff++;
+       throw new Error('Exact copy mismatch '+name+' index '+diff+' lengths '+reverted.length+'/'+original.length+
+         ' expected '+JSON.stringify(original.slice(Math.max(0,diff-55),diff+90))+
+         ' got '+JSON.stringify(reverted.slice(Math.max(0,diff-55),diff+90)));
+     }
    }
  }
 });
