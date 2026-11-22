@@ -63,7 +63,12 @@ jobs:
           assert (root/"staging/tv3.html").is_file()
           tv3=(root/"staging/tv3-remote.js").read_text()
           assert "app.database().ref('screens/third').on('value'" in tv3
-          assert "frame.src=externalUrls[desired]||'/staging/boards/'" in tv3
+          # The receiver now reloads explicitly re-sent sports boards using
+          # the owner's new updatedAt command; external Live/Upcoming unchanged.
+          assert "var chosen=externalUrls[desired]||'/staging/boards/'" in tv3
+          assert "chosen+=(chosen.indexOf('?')>=0?'&':'?')+'mcSend='+lastAssignmentStamp" in tv3
+          assert "frame.src=chosen;" in tv3
+          assert "report('command-refreshed',newMode)" in tv3
           assert "upcoming:'https://caveup.pages.dev/'" in tv3
           assert "live:'https://testcave.pages.dev/'" in tv3
           # Nested Fire TV Cloudflare player cannot resolve original
