@@ -78,6 +78,10 @@ jobs:
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
         run: node cloud-28/tests/browser-image-source-preview.mjs
+      - name: Confirm Red Sox detached-image observer fix in six fresh browser sessions
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: node cloud-28/tests/verify-redsox-guard-preview.mjs
       - name: Save source-image experiment evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -88,3 +92,4 @@ jobs:
           path: |
             image-source-profile.json
             image-source-preview.png
+            redsox-guard-validation.json
