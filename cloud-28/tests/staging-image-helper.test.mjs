@@ -30,8 +30,8 @@ test('all cloned runtimes preserve the original outside of exact image routing h
      assert.ok(b,'Staging clone missing known helper '+name);
      let reverted=clone.replace(b,a);
      if(name==='runtime_redsox_p3_v7t.js'){
-       const safe="  function proxyImages(root=document) {\n    if(!root || typeof root.querySelectorAll!=='function')return;\n    $('img[src]',root).forEach(img=>{";
-       const prior="  function proxyImages(root=document) {\n    $('img[src]',root).forEach(img=>{";
+       const safe="  function proxyImages(root=document) {\n    if(!root || typeof root.querySelectorAll!=='function')return;\n    $$('img[src]',root).forEach(img=>{";
+       const prior="  function proxyImages(root=document) {\n    $$('img[src]',root).forEach(img=>{";
        assert.ok(clone.includes(safe),'Red Sox P3 guard must exist exactly in staging');
        assert.ok(!original.includes(safe),'Approved original Red Sox must remain unchanged');
        reverted=reverted.replace(safe,prior);
