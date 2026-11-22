@@ -34,7 +34,7 @@ jobs:
               assert html.count('/staging/tv3-remote.js?v=same-address-r1')==1,(label,'duplicate or missing receiver')
               assert html.count('/staging/player.js')==1,(label,'original rotation missing')
               assert html.count('/staging/local-state.js?v=local-r1')==1,(label,'request budget shim missing')
-          assert 'if(window.top!==window)return;' in remote,'embedded TV guard missing'
+          assert "(document.referrer||'').indexOf('https://broncos5523.github.io/')===0" in remote,'known wing isolation missing'
           assert "app.database().ref('screens/third').on('value'" in remote
           assert "database().ref('screens/third').set(" not in remote
           assert "frame.src=externalUrls[desired]||'/staging/boards/'" in remote
@@ -70,6 +70,7 @@ jobs:
           npm install --no-save playwright
           npx playwright install --with-deps chromium
           node cloud-28/tests/browser-same-url-receiver.mjs
+          node cloud-28/tests/browser-nested-onn-receiver.mjs
       - name: Save receiver proof
         if: always()
         uses: actions/upload-artifact@v4
