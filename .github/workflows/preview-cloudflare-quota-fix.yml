@@ -74,14 +74,14 @@ jobs:
           from pathlib import Path
           raw=Path(sys.argv[1]).read_text(errors='replace')
           urls=[]
-          for start in (m.start() for m in re.finditer(r'\\{',raw)):
+          for start in (m.start() for m in re.finditer(r'\{',raw)):
               try:
                   doc,_=json.JSONDecoder().raw_decode(raw[start:])
                   urls=doc.get('preview',{}).get('urls',[])
                   if urls:break
               except (json.JSONDecodeError,AttributeError,TypeError):pass
           if not urls:
-              urls=re.findall(r'https://[A-Za-z0-9.-]+\\.workers\\.dev(?:/[^\\s]*)?',raw)
+              urls=re.findall(r'https://[A-Za-z0-9.-]+\.workers\.dev(?:/[^\s]*)?',raw)
           urls=[u.rstrip('/').rstrip(',.') for u in urls if 'workers.dev' in u]
           if not urls:
               # Never echo arbitrary CLI content or tokens to public logs.
