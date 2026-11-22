@@ -1,0 +1,169 @@
+name: Restore controller commands at the existing production TV address
+on:
+  push:
+    branches: [fix/controller-on-original-player-url-20261122]
+    paths:
+      - .github/workflows/deploy-original-url-controller.yml
+permissions:
+  contents: read
+concurrency:
+  group: man-cave-28-production-release
+  cancel-in-progress: false
+jobs:
+  restore-controller:
+    if: github.ref == 'refs/heads/fix/controller-on-original-player-url-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify narrowly scoped controller-on-same-address change
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 55b0b57fc341945e5aae4bafa7bef337691166eb HEAD
+          changed="$(git diff --name-only 55b0b57fc341945e5aae4bafa7bef337691166eb HEAD)"
+          printf '%s\n' "$changed"
+          if printf '%s\n' "$changed" | grep -v -E '^(cloud-28/build_cloudflare_visual_staging\.py|cloud-28/tests/browser-same-url-receiver\.mjs|\.github/workflows/(verify-same-address-controller|deploy-original-url-controller)\.yml)$' | grep -q .; then
+            echo "Unexpected source change; abort release"; exit 1
+          fi
+          python - <<'PY'
+          import json,re
+          from pathlib import Path
+          conf=json.loads(re.sub(r'^\s*//.*$','',Path('wrangler.jsonc').read_text(),flags=re.M))
+          assert conf['name']=='man-cave-28-page'
+          assert conf['main']=='./cloud-28/cloudflare-live-proxy.mjs'
+          assert conf['assets']['directory']=='./cloud-28/cloudflare-static-dist'
+          print('PASS_EXISTING_PRODUCTION_WORKER_AND_ADDRESS_ONLY')
+          PY
+      - name: Snapshot and verify deployed version before fix
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deployments status --config wrangler.jsonc --json > "$RUNNER_TEMP/original.json"
+          python - "$RUNNER_TEMP/original.json" <<'PY'
+          import json,re,sys
+          from pathlib import Path
+          raw=Path(sys.argv[1]).read_text()
+          try:record=json.loads(raw)
+          except json.JSONDecodeError:
+            m=re.search(r'[\[{]',raw)
+            assert m
+            record=json.JSONDecoder().raw_decode(raw[m.start():])[0]
+          versions=[(v.get('version_id'),v.get('percentage')) for v in record.get('versions',[])]
+          expected='0bad885a-c426-4143-b9f4-ff0a4764edd1'
+          assert versions==[(expected,100)],'Live Worker changed; abort rather than overwrite'
+          print('PASS_PRE_FIX_VERSION_SAVED',expected)
+          PY
+      - name: Rebuild Gold Master and verify original URL receives exactly one controller
+        run: |
+          set -euo pipefail
+          python cloud-28/prepare.py
+          python cloud-28/build_cloudflare_assets.py
+          python cloud-28/tests/staging_runtime_images.test.py
+          node --test cloud-28/tests/worker-proxy.test.mjs cloud-28/tests/request-budget.test.mjs cloud-28/tests/staging-image-helper.test.mjs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('cloud-28/cloudflare-static-dist')
+          stage=root/'staging'
+          player=(stage/'player.html').read_text()
+          tv3=(stage/'tv3.html').read_text()
+          remote=(stage/'tv3-remote.js').read_text()
+          original=(stage/'player.js').read_text()
+          for page in (player,tv3):
+            assert page.count('/staging/tv3-remote.js?v=same-address-r1')==1
+            assert page.count('/staging/player.js')==1
+            assert page.count('/staging/local-state.js?v=local-r1')==1
+          assert 'if(window.top!==window)return;' in remote
+          assert "app.database().ref('screens/third').on('value'" in remote
+          assert "frame.src=externalUrls[desired]||'/staging/boards/'" in remote
+          assert 'const DUR=30000;' in original
+          assert len(list((stage/'boards').glob('*.html')))==28
+          assert json.loads((stage/'boards.json').read_text())['duration_ms']==30000
+          print('PASS_EXACT_SAME_URL_CONTROLLER_AND_28_BOARD_ROTATION')
+          PY
+          npx --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir ./_controller-release-dryrun
+      - name: Deploy same-URL controller receiver to existing Cloudflare Worker
+        id: deployment
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --config wrangler.jsonc --strict --keep-vars --message "Fix 32-inch controller send at unchanged 28-board player URL"
+      - name: Verify actual production URL serves receiver and unchanged rotation
+        id: smoke
+        run: |
+          python - <<'PY'
+          import urllib.request,time,json
+          host='https://man-cave-28-page.broncos5523.workers.dev'
+          cases=[
+            ('/staging/player.html?rotate=off','player'),
+            ('/staging/tv3.html?rotate=off','alias'),
+            ('/staging/tv3-remote.js?v=same-address-r1','remote'),
+            ('/staging/player.js','rotation'),
+            ('/staging/boards.json','manifest')
+          ]
+          for path,kind in cases:
+            body=None
+            for attempt in range(4):
+              try:
+                req=urllib.request.Request(host+path,headers={
+                  'User-Agent':'Mozilla/5.0 ManCaveSameAddressRelease/1.0',
+                  'Cache-Control':'no-cache'})
+                with urllib.request.urlopen(req,timeout=28) as r:
+                  assert r.status==200
+                  body=r.read(500000)
+                if kind in ('player','alias'):
+                  assert body.count(b'/staging/tv3-remote.js?v=same-address-r1')==1
+                  assert body.count(b'/staging/player.js')==1
+                if kind=='remote':
+                  assert b'if(window.top!==window)return;' in body
+                  assert b"screens/third" in body
+                if kind=='rotation':assert b'const DUR=30000;' in body
+                if kind=='manifest':
+                  d=json.loads(body)
+                  assert len(d['boards'])==28 and d['duration_ms']==30000
+                print('PASS_UNCHANGED_TV_URL',path)
+                break
+              except Exception:
+                if attempt==3:raise
+                time.sleep(5)
+          print('PASS_ORIGINAL_TV_ADDRESS_RECEIVER_AND_ROTATION')
+          PY
+      - name: Verify new production version is active
+        if: steps.deployment.outcome == 'success'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          npx --yes wrangler@4 deployments status --config wrangler.jsonc --json > "$RUNNER_TEMP/current.json"
+          python - "$RUNNER_TEMP/current.json" <<'PY'
+          import json,re,sys
+          from pathlib import Path
+          raw=Path(sys.argv[1]).read_text()
+          try:doc=json.loads(raw)
+          except json.JSONDecodeError:
+            m=re.search(r'[\[{]',raw)
+            assert m
+            doc=json.JSONDecoder().raw_decode(raw[m.start():])[0]
+          vers=[(v.get('version_id'),v.get('percentage')) for v in doc.get('versions',[])]
+          assert len(vers)==1 and vers[0][1]==100
+          assert vers[0][0]!='0bad885a-c426-4143-b9f4-ff0a4764edd1'
+          print('PASS_CONTROLLER_SAME_ADDRESS_PRODUCTION_VERSION',vers[0][0])
+          print('ROLLBACK_VERSION','0bad885a-c426-4143-b9f4-ff0a4764edd1')
+          PY
+      - name: Auto rollback if post-release production checks fail
+        if: failure() && steps.deployment.outcome == 'success'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          npx --yes wrangler@4 rollback 0bad885a-c426-4143-b9f4-ff0a4764edd1 --config wrangler.jsonc --message "Rollback after same URL controller receiver verification failed"
+          echo "ROLLED_BACK_TO_PRIOR_28_BOARD_WORKER"
