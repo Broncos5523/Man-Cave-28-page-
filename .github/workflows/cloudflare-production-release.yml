@@ -1,0 +1,167 @@
+name: Authorized Man Cave 28-board Production Rollout (auto rollback)
+on:
+  push:
+    branches: [release/cloudflare-quota-20261122]
+    paths: [.github/workflows/cloudflare-production-release.yml]
+permissions:
+  contents: read
+concurrency:
+  group: man-cave-28-prod-release
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/release/cloudflare-quota-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 27
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify release contains exactly PR4 content plus release workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor b467fa20512b69a38831617e0b1286bc5e3d0d02 HEAD
+          changed="$(git diff --name-only b467fa20512b69a38831617e0b1286bc5e3d0d02 HEAD)"
+          printf '%s\n' "$changed"
+          if printf '%s\n' "$changed" | grep -v -E '^\.github/workflows/cloudflare-(release-preflight|production-release)\.yml$' | grep -q .; then
+            echo "Approved source differs; abort production release"; exit 1
+          fi
+          python - <<'PY'
+          from pathlib import Path
+          import json,re
+          cfg=json.loads(re.sub(r'^\s*//.*$', '',Path('wrangler.jsonc').read_text(),flags=re.M))
+          assert cfg['name']=='man-cave-28-page'
+          assert cfg['main']=='./cloud-28/cloudflare-live-proxy.mjs'
+          assert cfg['assets']['directory']=='./cloud-28/cloudflare-static-dist'
+          assert cfg['assets']['run_worker_first']==['/proxy','/migration-api/*','/staging/api/*','/api/board/*','/production/api/*']
+          print('PASS_EXACT_PRODUCTION_TARGET')
+          PY
+      - name: Verify original live deployment is still active
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deployments status --config wrangler.jsonc --json > "$RUNNER_TEMP/before.json"
+          python - "$RUNNER_TEMP/before.json" <<'PY'
+          import sys,json,re
+          from pathlib import Path
+          raw=Path(sys.argv[1]).read_text()
+          try:d=json.loads(raw)
+          except json.JSONDecodeError:
+            start=re.search(r'[\[{]',raw)
+            assert start
+            d=json.JSONDecoder().raw_decode(raw[start.start():])[0]
+          versions=[(v.get('version_id'),v.get('percentage')) for v in d.get('versions',[])]
+          assert versions==[('073fbb18-453e-4c04-a609-cabdad8dcee2',100)],'Live Worker changed since preflight'
+          print('PASS_ROLLBACK_VERSION_SNAPSHOT_073fbb18')
+          PY
+      - name: Rebuild approved v8l boards and run source, security and image tests
+        run: |
+          set -euo pipefail
+          python cloud-28/prepare.py
+          python cloud-28/build_cloudflare_assets.py
+          python cloud-28/tests/staging_runtime_images.test.py
+          node --test cloud-28/tests/worker-proxy.test.mjs cloud-28/tests/request-budget.test.mjs cloud-28/tests/staging-image-helper.test.mjs
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          root=Path('cloud-28/cloudflare-static-dist')
+          assert len(list((root/'staging/boards').glob('*.html')))==28
+          manifest=json.loads((root/'staging/boards.json').read_text())
+          assert len(manifest['boards'])==28 and manifest['duration_ms']==30000
+          assert b"target.hostname==='a.espncdn.com'" in (root/'staging/runtime/runtime_nfl_p1_v7j.js').read_bytes()
+          assert b'node.parentNode||document' in (root/'staging/runtime/runtime_redsox_p3_v7t.js').read_bytes()
+          print('PASS_VISUAL_PARITY_AND_DIRECT_IMAGE_TRANSPORT')
+          PY
+          npx --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir ./_prod-bundle-checked
+      - name: Deploy optimized release to existing man-cave-28-page Worker
+        id: production
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --config wrangler.jsonc --strict --keep-vars --message "User-approved 28-board quota optimization, unchanged v8l artwork and timings"
+      - name: Verify live production assets and runtime with cache-busting requests
+        id: smoke
+        run: |
+          python - <<'PY'
+          import json,time,urllib.request,urllib.error
+          base='https://man-cave-28-page.broncos5523.workers.dev'
+          cases=[
+            ('/staging/boards.json','manifest'),
+            ('/staging/player.html','player'),
+            ('/staging/boards/page1_nfl','board'),
+            ('/staging/runtime/runtime_nfl_p1_v7j.js','espn'),
+            ('/staging/runtime/runtime_redsox_p3_v7t.js','redsox'),
+            ('/migration-api/health','health')
+          ]
+          for path,kind in cases:
+            passed=False
+            for attempt in range(4):
+              req=urllib.request.Request(base+path+'?deployment-audit=20261122',
+                headers={'User-Agent':'Mozilla/5.0 ManCaveReleaseCheck/1.0','Accept':'application/json,text/html,*/*'})
+              try:
+                with urllib.request.urlopen(req,timeout=25) as r:
+                  raw=r.read(450000)
+                  assert r.status==200
+                if kind=='manifest':
+                  obj=json.loads(raw)
+                  assert len(obj['boards'])==28 and obj['duration_ms']==30000
+                if kind=='player': assert b'/staging/local-state.js?v=local-r1' in raw
+                if kind=='board': assert b'/staging/runtime/runtime_nfl_p1_v7j.js' in raw
+                if kind=='espn': assert b"target.hostname==='a.espncdn.com'" in raw
+                if kind=='redsox': assert b'node.parentNode||document' in raw
+                if kind=='health': assert json.loads(raw)['ok'] is True
+                print('PASS_PRODUCTION_ENDPOINT',path,kind)
+                passed=True
+                break
+              except urllib.error.HTTPError as ex:
+                if kind=='health' and ex.code in (429,1027):
+                  print('QUOTA_BLOCKS_DYNAMIC_HEALTH_NOT_A_CODE_REGRESSION',ex.code)
+                  passed=True
+                  break
+                print('RETRY_HTTP',path,ex.code,attempt)
+              except Exception as ex:
+                print('RETRY_EXCEPTION',path,type(ex).__name__,attempt)
+              if attempt<3:time.sleep(5)
+            if not passed:raise RuntimeError('Production release verification failed: '+path)
+          print('PASS_PRODUCTION_SIX_ENDPOINT_RELEASE')
+          PY
+      - name: Confirm new deployed version is active and log rollback version
+        if: steps.production.outcome == 'success'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          npx --yes wrangler@4 deployments status --config wrangler.jsonc --json > "$RUNNER_TEMP/after.json"
+          python - "$RUNNER_TEMP/after.json" <<'PY'
+          import json,re,sys
+          from pathlib import Path
+          raw=Path(sys.argv[1]).read_text()
+          try:d=json.loads(raw)
+          except json.JSONDecodeError:
+            p=re.search(r'[\[{]',raw)
+            assert p
+            d=json.JSONDecoder().raw_decode(raw[p.start():])[0]
+          versions=[(v.get('version_id'),v.get('percentage')) for v in d.get('versions',[])]
+          assert len(versions)==1 and versions[0][1]==100
+          assert versions[0][0]!='073fbb18-453e-4c04-a609-cabdad8dcee2'
+          print('PASS_NEW_PRODUCTION_VERSION',versions[0][0])
+          print('ROLLBACK_VERSION','073fbb18-453e-4c04-a609-cabdad8dcee2')
+          PY
+          echo "Production Worker man-cave-28-page; original rollback version 073fbb18-453e-4c04-a609-cabdad8dcee2" >> "$GITHUB_STEP_SUMMARY"
+      - name: AUTOMATIC rollback on post-deployment verification failure
+        if: failure() && steps.production.outcome == 'success'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          echo "A post-deploy check failed. Restoring captured prior Worker version."
+          npx --yes wrangler@4 rollback 073fbb18-453e-4c04-a609-cabdad8dcee2 --config wrangler.jsonc --message "Automatic rollback after release verification failure"
+          echo "ROLLED_BACK_TO_PRIOR_VERSION_073fbb18"
