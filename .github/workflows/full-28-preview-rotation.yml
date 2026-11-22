@@ -4,6 +4,8 @@ on:
     branches: [experiment/espn-image-source-20261122]
     paths:
       - .github/workflows/full-28-preview-rotation.yml
+      - cloud-28/staging_runtime_images.py
+      - cloud-28/tests/staging_runtime_images.test.py
   workflow_dispatch:
 permissions:
   contents: read
@@ -25,6 +27,19 @@ jobs:
             cloud-28/tests/browser-full-cycle.mjs > cloud-28/tests/preview-full-cycle.tmp.mjs
           grep -q 'img-source-man-cave-28-page.broncos5523.workers.dev' cloud-28/tests/preview-full-cycle.tmp.mjs
           ! grep -q "'https://man-cave-28-page.broncos5523.workers.dev'" cloud-28/tests/preview-full-cycle.tmp.mjs
+      - name: Ensure the live isolated Preview contains the Red Sox null-parent guard
+        shell: bash
+        run: |
+          python - <<'PY'
+          from urllib.request import urlopen,Request
+          path="https://img-source-man-cave-28-page.broncos5523.workers.dev/staging/runtime/runtime_redsox_p3_v7t.js"
+          req=Request(path,headers={"User-Agent":"Mozilla/5.0 CloudflarePreviewCI/1.0"})
+          with urlopen(req,timeout=25) as response:
+              assert response.status == 200
+              source=response.read()
+          assert b"if(node.tagName==='IMG')proxyImages(node.parentNode||document);" in source
+          print("PASS_REDSOX_STAGING_GUARD_PRESENT")
+          PY
       - name: Watch real 30-second timings across every page and return to first
         run: node cloud-28/tests/preview-full-cycle.tmp.mjs
       - name: Save 28-page rotation and screenshot evidence
