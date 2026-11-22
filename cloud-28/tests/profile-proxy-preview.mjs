@@ -5,6 +5,8 @@ import fs from 'node:fs';
 
 const origin='https://pr-2-man-cave-28-page.broncos5523.workers.dev';
 const browser=await chromium.launch({headless:true});
+// Bound the smoke job even if a page script blocks browser navigation.
+const watchdog=setTimeout(()=>{console.error('QUOTA_PROFILE_WATCHDOG_90S');process.exit(1)},90000);
 const context=await browser.newContext({viewport:{width:720,height:1280},
   userAgent:'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/128.0.0.0 Safari/537.36'});
 const page=await context.newPage();
@@ -62,3 +64,4 @@ const report={
 console.log('PUBLIC_PROXY_PROFILE',JSON.stringify(report));
 fs.writeFileSync('quota-proxy-profile.json',JSON.stringify(report,null,2));
 await browser.close();
+clearTimeout(watchdog);
