@@ -1,0 +1,21 @@
+name: Read-only Cloudflare quota analytics snapshot
+on:
+  push:
+    branches: [experiment/espn-image-source-20261122]
+    paths:
+      - .github/workflows/read-cloudflare-quota.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sample:
+    if: github.ref == 'refs/heads/experiment/espn-image-source-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read worker invocation totals if GitHub token has Analytics Read scope
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python cloud-28/tests/cloudflare-usage-readonly.py
