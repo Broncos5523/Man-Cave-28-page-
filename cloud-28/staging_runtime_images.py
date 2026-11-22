@@ -35,12 +35,12 @@ STAGING_HELPER = (
 # detached IMG.parentNode; skip only that impossible query root.
 REDSOX_ORIGINAL = (
     b"  function proxyImages(root=document) {\n"
-    b"    $('img[src]',root).forEach(img=>{"
+    b"    $$('img[src]',root).forEach(img=>{"
 )
 REDSOX_SAFE = (
     b"  function proxyImages(root=document) {\n"
     b"    if(!root || typeof root.querySelectorAll!=='function')return;\n"
-    b"    $('img[src]',root).forEach(img=>{"
+    b"    $$('img[src]',root).forEach(img=>{"
 )
 
 RUNTIME_REF = re.compile(
