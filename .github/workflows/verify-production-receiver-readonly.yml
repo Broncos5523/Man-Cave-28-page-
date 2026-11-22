@@ -1,0 +1,28 @@
+name: Read-only production receiver Firebase connectivity at SAME address
+on:
+  push:
+    branches: [fix/controller-on-original-player-url-20261122]
+    paths:
+      - .github/workflows/verify-production-receiver-readonly.yml
+permissions:
+  contents: read
+jobs:
+  production-receiver-readonly:
+    if: github.ref == 'refs/heads/fix/controller-on-original-player-url-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run browser without user credentials or Firebase writes
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+          node cloud-28/tests/production-receiver-readonly.mjs
+      - name: Store read-only receiver connectivity proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-receiver-readonly-connection
+          retention-days: 7
+          if-no-files-found: ignore
+          path: production-receiver-readonly.json
