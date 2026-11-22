@@ -1,0 +1,18 @@
+name: Diagnose legacy ESPN and MLB 502s, bounded read-only probes
+on:
+  push:
+    branches: [experiment/espn-image-source-20261122]
+    paths:
+      - .github/workflows/probe-public-data-502.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    if: github.ref == 'refs/heads/experiment/espn-image-source-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect one ESPN Core URL and one MLB schedule URL direct vs isolated Preview
+        run: python cloud-28/tests/probe-public-data-502.py

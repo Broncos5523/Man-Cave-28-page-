@@ -1,0 +1,30 @@
+name: Isolate Red Sox P3 renderer lifecycle on baseline and Preview
+on:
+  push:
+    branches: [experiment/espn-image-source-20261122]
+    paths:
+      - .github/workflows/isolate-redsox-preview.yml
+      - cloud-28/tests/compare-redsox-render.mjs
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    if: github.ref == 'refs/heads/experiment/espn-image-source-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install browser (runner only)
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Compare two fresh-context Red Sox P3 loads per version
+        run: node cloud-28/tests/compare-redsox-render.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: redsox-lifecycle-comparison
+          retention-days: 7
+          if-no-files-found: ignore
+          path: redsox-render-compare.json

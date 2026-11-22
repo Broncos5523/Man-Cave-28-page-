@@ -1,0 +1,33 @@
+name: Verify six more leagues and original 30s rotation on image Preview
+on:
+  push:
+    branches: [experiment/espn-image-source-20261122]
+    paths:
+      - .github/workflows/browser-image-multileague.yml
+      - cloud-28/tests/browser-image-multileague.mjs
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    if: github.ref == 'refs/heads/experiment/espn-image-source-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Chromium on runner (no user device setup)
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Read-only six-league image parity and actual 30s rotation
+        run: node cloud-28/tests/browser-image-multileague.mjs
+      - name: Store one consolidated visual report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-source-all-leagues-and-rotation
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            multi-league-image-report.json
+            image-league-*.png

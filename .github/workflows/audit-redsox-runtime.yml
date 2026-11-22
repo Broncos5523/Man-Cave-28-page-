@@ -1,0 +1,33 @@
+name: Audit exact Red Sox P3 MutationObserver source (read-only)
+on:
+  push:
+    branches: [experiment/espn-image-source-20261122]
+    paths:
+      - .github/workflows/audit-redsox-runtime.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    if: github.ref == 'refs/heads/experiment/espn-image-source-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regenerate SHA-locked approved original runtimes
+        run: |
+          python cloud-28/prepare.py
+          python cloud-28/build_cloudflare_assets.py
+      - name: Read only Red Sox helper and observer callsites
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('cloud-28/cloudflare-static-dist/runtime_redsox_p3_v7t.js')
+          data=p.read_text()
+          lines=data.splitlines()
+          for a,b in [(1,26),(127,156),(819,851)]:
+              print('REDSOX_RUNTIME_RANGE',a,b,flush=True)
+              for n in range(a,b+1):
+                  print('%d:%s'%(n,lines[n-1]),flush=True)
+          print('REDSOX_RUNTIME_BYTES',len(data),'LINES',len(lines),flush=True)
+          PY

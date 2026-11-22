@@ -1,0 +1,34 @@
+name: Sweep all 28 image-source Preview boards without live cutover
+on:
+  push:
+    branches: [experiment/espn-image-source-20261122]
+    paths:
+      - .github/workflows/preview-all-28-sweep.yml
+      - cloud-28/tests/preview-all-28-image-sweep.mjs
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  all-boards:
+    if: github.ref == 'refs/heads/experiment/espn-image-source-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Chromium only on GitHub runner
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Inspect every staging board, direct images and Worker /proxy targets
+        run: node cloud-28/tests/preview-all-28-image-sweep.mjs
+      - name: Preserve consolidated 28-board image evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-all-28-image-evidence
+          retention-days: 10
+          if-no-files-found: ignore
+          path: |
+            all-28-image-preview.json
+            image-preview-board-*.png
+            image-preview-error-*.png

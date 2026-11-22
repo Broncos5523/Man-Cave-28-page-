@@ -1,0 +1,30 @@
+name: Verify isolated ESPN image-source transport (no deploy)
+on:
+  push:
+    branches: [experiment/espn-image-source-20261122]
+    paths:
+      - .github/workflows/verify-espn-image-source.yml
+      - cloud-28/staging_runtime_images.py
+      - cloud-28/build_cloudflare_visual_staging.py
+      - cloud-28/tests/staging_runtime_images.test.py
+      - cloud-28/tests/staging-image-helper.test.mjs
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/experiment/espn-image-source-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rebuild locked v8l approved assets and staging scripts
+        run: |
+          python cloud-28/prepare.py
+          python cloud-28/build_cloudflare_assets.py
+      - name: Prove originals are untouched and run source helper regressions
+        run: |
+          python cloud-28/tests/staging_runtime_images.test.py
+          node --test cloud-28/tests/staging-image-helper.test.mjs cloud-28/tests/request-budget.test.mjs cloud-28/tests/worker-proxy.test.mjs
+      - name: Wrangler configuration validation only, not deployment
+        run: npx --yes wrangler@4 deploy --config cloud-28/wrangler-quota-preview.jsonc --dry-run --outdir ./_img-source-dryrun
