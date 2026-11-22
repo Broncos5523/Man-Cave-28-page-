@@ -1,0 +1,31 @@
+name: Compare upstream 502 failures with verified baseline (no deploy)
+on:
+  push:
+    branches: [experiment/espn-image-source-20261122]
+    paths:
+      - .github/workflows/compare-preview-upstream.yml
+      - cloud-28/tests/compare-proxy-502.mjs
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    if: github.ref == 'refs/heads/experiment/espn-image-source-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install runner browser (no TV changes)
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Compare public ESPN proxy failures on unmodified vs optimized staging
+        run: node cloud-28/tests/compare-proxy-502.mjs
+      - name: Preserve comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-upstream-502-diagnosis
+          retention-days: 10
+          if-no-files-found: ignore
+          path: proxy-502-comparison.json
