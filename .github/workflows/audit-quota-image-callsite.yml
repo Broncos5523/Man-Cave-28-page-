@@ -24,16 +24,16 @@ jobs:
           import pathlib,re
           root=pathlib.Path('cloud-28/cloudflare-static-dist')
           bdir=root/'staging'/'boards'
-          terms=['/proxy?url','proxied(', 'encodeURIComponent(','img.src','new Image(','createElement("img")',"createElement('img')",'\\.src\\s*=','setAttribute("src"','setAttribute(\\'src\\'']
+          terms=['/proxy?url','proxied(', 'encodeURIComponent(', 'img.src', 'new Image(', 'createElement(', '.src=', 'setAttribute(']
           for name in ('page1_nfl','page2_nfl','page4_broncos','page1_nba','page1_cbb','page4_bruins'):
               file=bdir/(name+'.html')
               text=file.read_text(errors='replace')
               lines=text.splitlines()
               matches=[]
               for no,line in enumerate(lines,1):
-                  if any((v in line if v!='\\.src\\s*=' else re.search(v,line)) for v in terms):
+                  if any(v in line for v in terms):
                       if len(matches)>=18:break
-                      cleaned=re.sub(r'https?://[^"\\'<> ]{160,}','[LONG_URL]',line).strip()
+                      cleaned=line.strip()
                       matches.append({'line':no,'snippet':cleaned[:340]})
               print('IMAGE_CALLSITE',name,'lines',len(lines),'matches',repr(matches),flush=True)
           # Explicitly examine any approved original runtime JS files included as static.
