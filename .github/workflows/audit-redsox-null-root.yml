@@ -1,0 +1,31 @@
+name: Audit Red Sox runtime null query guard source (no deploy)
+on:
+  push:
+    branches: [fix/redsox-p3-null-root-20261122]
+    paths:
+      - .github/workflows/audit-redsox-null-root.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.ref == 'refs/heads/fix/redsox-p3-null-root-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare approved Gold Master and staging copy
+        run: |
+          python cloud-28/prepare.py
+          python cloud-28/build_cloudflare_assets.py
+      - name: Print only relevant query helper and observer callsites
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          file=Path('cloud-28/cloudflare-static-dist/staging/runtime/runtime_redsox_p3_v7t.js')
+          data=file.read_text().splitlines()
+          for a,b in ((1,17),(132,151),(831,852)):
+              print('REDSOX_AUDIT_SEGMENT',a,b,flush=True)
+              for n in range(a,min(b,len(data))+1):
+                  print('RUNTIME_LINE',n,data[n-1][:360],flush=True)
+          PY
