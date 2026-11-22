@@ -12,8 +12,12 @@ if not token or not account:
     sys.exit(0)
 
 now=datetime.now(timezone.utc)
+today=now.replace(hour=0,minute=0,second=0,microsecond=0)
+yesterday=today-timedelta(days=1)
 periods=[("last_60m",now-timedelta(hours=1),now),
-         ("last_24h",now-timedelta(hours=24),now)]
+         ("last_24h",now-timedelta(hours=24),now),
+         ("current_utc_day",today,now),
+         ("prior_utc_day",yesterday,today)]
 query="""query Metrics($tag:string,$lo:string,$hi:string){
   viewer { accounts(filter:{accountTag:$tag}) {
     workersInvocationsAdaptive(
