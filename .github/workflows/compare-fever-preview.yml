@@ -1,0 +1,33 @@
+name: Compare Fever broken images with original PR2 Preview
+on:
+  push:
+    branches: [experiment/espn-image-source-20261122]
+    paths:
+      - .github/workflows/compare-fever-preview.yml
+      - cloud-28/tests/compare-fever-images.mjs
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    if: github.ref == 'refs/heads/experiment/espn-image-source-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Playwright Chromium on runner
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Compare Fever P3/P4 original vs experimental image references
+        run: node cloud-28/tests/compare-fever-images.mjs
+      - name: Save visual comparison and exact failed URLs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fever-image-preview-comparison
+          retention-days: 10
+          if-no-files-found: ignore
+          path: |
+            fever-image-compare.json
+            fever-*.png
