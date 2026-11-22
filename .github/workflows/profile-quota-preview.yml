@@ -1,0 +1,31 @@
+name: Profile only isolated 28-board Preview proxy traffic
+on:
+  push:
+    branches: [fix/cloudflare-request-budget-20261119]
+    paths:
+      - .github/workflows/profile-quota-preview.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  profile:
+    if: github.ref == 'refs/heads/fix/cloudflare-request-budget-20261119'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Profile 12 seconds per NFL board on separate Preview
+        run: node cloud-28/tests/profile-proxy-preview.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quota-preview-proxy-profile
+          path: quota-proxy-profile.json
+          if-no-files-found: ignore
+          retention-days: 3
