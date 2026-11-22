@@ -43,4 +43,20 @@ jobs:
                   if phrase in data:
                       i=data.index(phrase)
                       print('RUNTIME_IMAGE_CALLSITE',path.name,phrase,repr(data[max(0,i-130):i+220]),flush=True)
+
+          print('IMAGE_HELPER_AUDIT_START')
+          for path in sorted(root.glob('runtime*.js')):
+              data=path.read_text(errors='replace')
+              anchor='const imageURL = value => {'
+              i=data.find(anchor)
+              if i<0:continue
+              import hashlib
+              snippet=data[i:i+850]
+              print('IMAGE_HELPER_SOURCE',path.name,'sha12',hashlib.sha256(snippet.encode()).hexdigest()[:12],
+                    'length',len(snippet),'body',repr(snippet),flush=True)
+          for name in ('page1_nfl','page2_nfl','page1_nba','page1_cbb','page4_broncos'):
+              source=(bdir/(name+'.html')).read_text(errors='replace')
+              refs=re.findall(r'(?:src=|import\s*\()\s*["\']([^"\']+\.js[^"\']*)',source)
+              print('BOARD_RUNTIME_REFS',name,refs[:20],flush=True)
+          print('IMAGE_HELPER_AUDIT_END')
           PY
