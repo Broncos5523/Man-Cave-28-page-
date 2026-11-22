@@ -29,8 +29,15 @@ try{
   active=bid;const started=Date.now();
   const response=await page.goto(origin+'/staging/boards/'+bid,{waitUntil:'domcontentloaded',timeout:40000});
   await page.waitForTimeout(12000);
-  const cache=await page.evaluate(()=>window.__MC_STAGING_FEED_CACHE_STATS__||null);
-  out.push({board:bid,status:response?.status(),ms:Date.now()-started,cache});
+  const view=await page.evaluate(()=>({
+    cache:window.__MC_STAGING_FEED_CACHE_STATS__||null,
+    directRewrites:window.__MC_STAGING_DIRECT_IMAGE_REWRITES__?.count||0,
+    imgCount:document.images.length,
+    loadedImages:[...document.images].filter(img=>img.complete&&img.naturalWidth>0).length,
+    directEspnImages:[...document.images].filter(img=>/^https:\/\/a\.espncdn\.com\//.test(img.currentSrc||img.src)).length,
+    brokenImages:[...document.images].filter(img=>img.complete&&img.naturalWidth===0).length
+  }));
+  out.push({board:bid,status:response?.status(),ms:Date.now()-started,...view});
  }
 }catch(e){out.push({board:active,error:String(e).slice(0,450)});}
 const endpoints=new Map(),grouped=new Map(),hosts=new Map();
