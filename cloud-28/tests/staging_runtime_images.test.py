@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from staging_runtime_images import (ORIGINAL_HELPER, STAGING_HELPER,
+from staging_runtime_images import (ORIGINAL_HELPER, STAGING_HELPER, REDSOX_ORIGINAL, REDSOX_SAFE,
                                     clone_staging_runtimes, rewrite_staging_script_links)
 
 class StagingImageSourceTests(unittest.TestCase):
@@ -24,6 +24,21 @@ class StagingImageSourceTests(unittest.TestCase):
                 self.assertNotIn(STAGING_HELPER, original)
                 self.assertIn(STAGING_HELPER, candidate)
                 self.assertEqual(candidate.replace(STAGING_HELPER, ORIGINAL_HELPER), original)
+
+    def test_redsox_null_observer_guard_changes_only_staging_clone(self):
+        with TemporaryDirectory() as d:
+            out = Path(d)
+            for i in range(21):
+                (out/f"runtime_test_{i}.js").write_bytes(b"const x=1;"+ORIGINAL_HELPER)
+            name = "runtime_redsox_p3_v7t.js"
+            original = b"const z=1;\n"+ORIGINAL_HELPER+b"\n"+REDSOX_ORIGINAL+b"\nconst end=1;"
+            (out/name).write_bytes(original)
+            clone_staging_runtimes(out)
+            result = (out/"staging"/"runtime"/name).read_bytes()
+            self.assertEqual((out/name).read_bytes(), original)
+            self.assertIn(REDSOX_SAFE, result)
+            self.assertNotIn(REDSOX_ORIGINAL, result)
+            self.assertEqual(result.replace(REDSOX_SAFE,REDSOX_ORIGINAL).replace(STAGING_HELPER,ORIGINAL_HELPER),original)
 
     def test_only_staging_script_urls_are_rewritten(self):
         original = (b'<script src="/runtime_test_1.js?board=page1_nfl"></script>'
