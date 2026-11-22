@@ -1,0 +1,28 @@
+name: Diagnose last 32 Onn controller command without writes
+on:
+  push:
+    branches: [fix/controller-on-original-player-url-20261122]
+    paths:
+      - .github/workflows/check-tv3-last-command.yml
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.ref == 'refs/heads/fix/controller-on-original-player-url-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read only the current TV3 assignment timestamp
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+          node cloud-28/tests/production-tv3-assignment-diagnostic.mjs
+      - name: Save minimal redacted Firebase command state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tv3-last-command-readonly
+          retention-days: 3
+          if-no-files-found: ignore
+          path: tv3-read-only-state.json

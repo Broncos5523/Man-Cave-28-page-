@@ -1,0 +1,80 @@
+name: Preview controller receiver at original 28-board player URL
+on:
+  push:
+    branches: [fix/controller-on-original-player-url-20261122]
+    paths:
+      - .github/workflows/verify-same-address-controller.yml
+      - cloud-28/build_cloudflare_visual_staging.py
+      - cloud-28/tests/browser-same-url-receiver.mjs
+permissions:
+  contents: read
+jobs:
+  isolated-same-address:
+    if: github.ref == 'refs/heads/fix/controller-on-original-player-url-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Rebuild original checksum-verified 28-board assets
+        run: |
+          python cloud-28/prepare.py
+          python cloud-28/build_cloudflare_assets.py
+      - name: Verify unchanged URL and exactly one receiver per player
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          stage=Path('cloud-28/cloudflare-static-dist/staging')
+          main=(stage/'player.html').read_text()
+          alias=(stage/'tv3.html').read_text()
+          remote=(stage/'tv3-remote.js').read_text()
+          for label,html in [('same-url',main),('tv3-alias',alias)]:
+              assert html.count('/staging/tv3-remote.js?v=same-address-r1')==1,(label,'duplicate or missing receiver')
+              assert html.count('/staging/player.js')==1,(label,'original rotation missing')
+              assert html.count('/staging/local-state.js?v=local-r1')==1,(label,'request budget shim missing')
+          assert 'if(window.top!==window)return;' in remote,'embedded TV guard missing'
+          assert "app.database().ref('screens/third').on('value'" in remote
+          assert "database().ref('screens/third').set(" not in remote
+          assert "frame.src=externalUrls[desired]||'/staging/boards/'" in remote
+          assert 'mc-tv3-single-board' in remote
+          assert len(list((stage/'boards').glob('*.html')))==28
+          print('PASS_SAME_PLAYER_URL_FIREBASE_LISTENER_AND_TV3_COMPAT_ALIAS')
+          PY
+          python cloud-28/tests/staging_runtime_images.test.py
+          node --test cloud-28/tests/worker-proxy.test.mjs cloud-28/tests/request-budget.test.mjs cloud-28/tests/staging-image-helper.test.mjs
+      - name: Publish isolated Cloudflare test Preview (never production)
+        id: preview
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 preview --config cloud-28/wrangler-quota-preview.jsonc --name same-url --json > "$RUNNER_TEMP/same-url-preview.txt"
+          preview_url="$(python - "$RUNNER_TEMP/same-url-preview.txt" <<'PY'
+          import re,sys
+          from pathlib import Path
+          raw=Path(sys.argv[1]).read_text(errors='replace')
+          urls=re.findall(r'https://same-url-[A-Za-z0-9.-]+\.workers\.dev',raw)
+          if not urls:raise SystemExit('Isolated preview URL unavailable')
+          print(urls[0])
+          PY
+          )"
+          echo "url=$preview_url" >> "$GITHUB_OUTPUT"
+          echo "SAME_ADDRESS_TEST_PREVIEW $preview_url"
+      - name: Test controller commands and return to rotation with MOCK Firebase only
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+          node cloud-28/tests/browser-same-url-receiver.mjs
+      - name: Save receiver proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unchanged-url-controller-command-proof
+          retention-days: 10
+          if-no-files-found: ignore
+          path: same-address-receiver-result.json
