@@ -1,6 +1,6 @@
 import {chromium} from 'playwright';
 import fs from 'node:fs';
-const host='https://man-cave-28-page.broncos5523.workers.dev';
+const host=process.env.PREVIEW_URL||'https://man-cave-28-page.broncos5523.workers.dev';
 const browser=await chromium.launch({headless:true}),results=[];
 try{
   for(const board of ['page4_celtics','page4_arizona_cbb','page4_fever']){
