@@ -1,0 +1,44 @@
+name: Verify strict Page4 ESPN Site fallback and unchanged v8l boards (no deployment)
+on:
+  push:
+    branches: [fix/page1-page4-freshness-20261122]
+    paths:
+      - .github/workflows/verify-page4-live-site-fallback.yml
+      - cloud-28/page4-live-api.mjs
+      - cloud-28/basketball-site-season-fallback.mjs
+      - cloud-28/tests/basketball-site-season-fallback.test.mjs
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/fix/page1-page4-freshness-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test official current-season per-player/roster fallback without any credentials
+        run: |
+          node --test cloud-28/tests/basketball-site-season-fallback.test.mjs \
+            cloud-28/tests/page4-live.test.mjs cloud-28/tests/worker-proxy.test.mjs \
+            cloud-28/tests/request-budget.test.mjs
+      - name: Rebuild checksum-verified original Gold Master and assert all 28 layouts
+        run: |
+          python cloud-28/prepare.py
+          python cloud-28/build_cloudflare_assets.py
+          python cloud-28/tests/staging_runtime_images.test.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          stage=Path('cloud-28/cloudflare-static-dist/staging')
+          assert len(list((stage/'boards').glob('*.html')))==28
+          j=json.loads((stage/'boards.json').read_text())
+          assert len(j['boards'])==28 and j['duration_ms']==30000
+          html=(stage/'player.html').read_text()
+          assert '/staging/tv3-remote.js?v=same-address-r1' in html
+          print('PASS_UNCHANGED_GOLD_MASTER_28_AND_EXISTING_PLAYER_URL')
+          PY
+      - name: Strict Cloudflare production bundle DRY RUN, no release
+        run: npx --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir ./_p4-fallback-proof
