@@ -35,7 +35,7 @@ test('fails shut against wrong season, wrong team and missing current-season rec
  const a=source();a.categories[0].statistics=a.categories[0].statistics.slice(0,1);
  assert.throws(()=>verifiedBasketballSiteSeasonStat(a,cfg),/Exact year and team/);
  assert.throws(()=>verifiedBasketballSiteSeasonStat(source(),{...cfg,team:'12'}),/Exact year and team/);
- assert.throws(()=>verifiedBasketballSiteSeasonStat(source(),{...cfg,year:2026}),/Exact year and team|ambiguous/);
+ assert.throws(()=>verifiedBasketballSiteSeasonStat(source(),{...cfg,year:2025}),/Exact year and team/);
  assert.throws(()=>verifiedBasketballSiteSeasonStat(source(),{...cfg,regularSeasonVerified:false}),/Regular season/);
 });
 test('rejects postseason, malformed 3-point composite and zero appearances',()=>{
