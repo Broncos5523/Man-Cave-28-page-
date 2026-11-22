@@ -23,6 +23,7 @@ var groups=[
 ];
 for(var i=0;i<groups.length;i++)for(var j=0;j<groups[i].length;j++)valid[groups[i][j]]=true;
 var desired=null,held='',frame=null,missingLogged=false,hasFirstCommand=false,geometryReported='';
+var lastAssignmentStamp=0;
 // The approved wrestling player is already portrait 9:16 and has its own
 // rotation. Keep its inner rotation OFF; the existing Onn outer stage handles it.
 var externalUrls={
@@ -89,7 +90,13 @@ function reconcile(){
  }
  if(held!==desired){
   held=desired;
-  frame.src=externalUrls[desired]||'/production/board/'+encodeURIComponent(desired)+'?tv3=hold';
+  var chosen=externalUrls[desired]||'/production/board/'+encodeURIComponent(desired)+'?tv3=hold';
+  // Re-sending the SAME selected sports page is an explicit request to
+  // update its statistics. Bypass the TV browser's long-lived frame snapshot,
+  // not the outer TV URL or the approved page's own artwork and layout.
+  if(valid[desired]&&lastAssignmentStamp)
+    chosen+=(chosen.indexOf('?')>=0?'&':'?')+'mcSend='+lastAssignmentStamp;
+  frame.src=chosen;
   report('board-command-applied',desired);
  }
 }
@@ -97,8 +104,19 @@ function receive(value){
  var type=value&&value.type;
  var newMode=(type==='wrestling'||type==='upcoming'||type==='live')?type:
   (type==='board'&&valid[value.board])?value.board:'rotation';
- if(desired===newMode)return;
- desired=newMode;
+ var stamp=Number(value&&value.updatedAt);
+ if(!Number.isSafeInteger(stamp)||stamp<=0)stamp=0;
+ if(desired===newMode){
+   // The original receiver ignored an updatedAt change on the same board,
+   // so repeating Send could never force a page to pick up fresh stats.
+   if(newMode!=='rotation'&&stamp>lastAssignmentStamp){
+     lastAssignmentStamp=stamp;held='';
+     report('command-refreshed',newMode);
+     reconcile();
+   }
+   return;
+ }
+ desired=newMode;lastAssignmentStamp=stamp;
  report('command-received',newMode);
  reconcile();
 }
