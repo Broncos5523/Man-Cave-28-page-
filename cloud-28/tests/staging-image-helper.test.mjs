@@ -28,7 +28,16 @@ test('all cloned runtimes preserve the original outside of exact image routing h
    if(!a)assert.equal(clone,original);
    else {
      assert.ok(b,'Staging clone missing known helper '+name);
-     assert.equal(clone.replace(b,a),original);
+     let unchanged=clone.replace(b,a);
+     if(name==='runtime_redsox_p3_v7t.js'){
+       const safe="if(node.tagName==='IMG')proxyImages(node.parentNode||document);";
+       const legacy="if(node.tagName==='IMG')proxyImages(node.parentNode);";
+       assert.ok(original.includes(legacy),'Expected approved Red Sox observer source');
+       assert.ok(unchanged.includes(safe),'Stage-only Red Sox null-parent guard missing');
+       assert.ok(!original.includes(safe),'Gold Master runtime must remain untouched');
+       unchanged=unchanged.replace(safe,legacy);
+     }
+     assert.equal(unchanged,original);
    }
  }
 });
