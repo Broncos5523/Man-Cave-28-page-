@@ -15,6 +15,7 @@ import threading
 import time
 import cbb_tournament_view
 import page4_patch
+from staging_runtime_images import clone_staging_runtimes, rewrite_staging_script_links
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
@@ -115,6 +116,8 @@ def main():
         raise RuntimeError("First run the verified Cloudflare static asset build")
     boards,ids=board_manifest()
     static_files=copy_approved_static_files()
+    staging_runtime_names,staging_image_helpers=clone_staging_runtimes(OUT)
+    staging_runtime_refs=0
     server=ThreadingHTTPServer(("127.0.0.1",0),Handler)
     server.daemon_threads=True
     server.born=time.monotonic()
@@ -204,6 +207,10 @@ def main():
                 raise RuntimeError("Page2 NFL original runtime link missing; do not fake readiness")
             if runtime_ref in response:
                 response=response.replace(runtime_ref,runtime_replacement)
+            # Only staging board HTML uses transport-only runtime clones.
+            # Root /runtime*.js (Gold Master originals) remain byte-identical.
+            response,used_runtimes=rewrite_staging_script_links(response,staging_runtime_names)
+            staging_runtime_refs+=len(used_runtimes)
             # Staging-only network shim runs BEFORE original inline scripts.
             # Original Gold Master stays untouched; fetch operations are
             # redirected solely to our strict same-origin Cloudflare relay.
@@ -226,6 +233,10 @@ def main():
                 raise RuntimeError("Duplicate Cloudflare preview shim: "+bid)
             response=response[:match.end()]+scripts+response[match.end():]
             save_binary(STAGE/"boards"/(bid+".html"),response)
+        if staging_runtime_refs < 20:
+            raise RuntimeError("Expected at least 20 staged approved runtime links")
+        print("STAGING_ONLY_ESPN_IMAGE_ROUTING",staging_image_helpers,
+              "exact helper copies,",staging_runtime_refs,"board script links",flush=True)
         save_binary(OUT/"production"/"spotlight-state.js",(approved.APP/"production"/"spotlight-state.js").read_bytes())
         save_binary(STAGE/"board-standalone-host.js",(HERE/"cloudflare-standalone-board-host.js").read_bytes())
         save_binary(STAGE/"espn-fetch-shim.js",(HERE/"cloudflare-public-feed-shim.js").read_bytes())
