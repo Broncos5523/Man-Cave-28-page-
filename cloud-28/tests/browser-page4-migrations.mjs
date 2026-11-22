@@ -16,7 +16,15 @@ try{
     try{
       await page.goto(host+'/staging/boards/'+board+'.html',{waitUntil:'domcontentloaded',timeout:45000});
       await page.waitForFunction(()=>!!window.__MC_PAGE4_LIVE_STATUS__?.lastSuccess,null,{timeout:65000});
-      if(!payload)throw Error('No current-season response observed');
+      // Chromium page script can apply the decoded response before our async
+      // response-event observer finishes its own r.json(). Wait for the actual
+      // payload rather than falsely failing a successful Arizona render.
+      if(!payload)await new Promise((resolve,reject)=>{
+        const timeout=Date.now()+5500;
+        const tick=()=>payload?resolve():Date.now()>timeout?
+          reject(Error('Current-season response was not captured')):setTimeout(tick,75);
+        tick();
+      });
       const state=await page.evaluate(id=>{
         const fever=id==='page4_fever',cbb=id==='page4_arizona_cbb';
         const cards=[...document.querySelectorAll(fever?'.fvp4-leader-card':cbb?'#leadersStack .azp4-leader-card':'#leadersStack .leader-card')];
