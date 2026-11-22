@@ -1,0 +1,17 @@
+name: Audit 7 Page 1 + 7 Page 4 stale data on live Cloudflare
+on:
+  push:
+    branches: [audit/page1-page4-freshness-20261122]
+    paths:
+      - .github/workflows/audit-page1-page4-freshness.yml
+permissions:
+  contents: read
+jobs:
+  audit:
+    if: github.ref == 'refs/heads/audit/page1-page4-freshness-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read all 7 Page 1 API responses, Page 4 API and published season cache
+        run: python cloud-28/tests/audit-seven-page1-seven-page4.py
