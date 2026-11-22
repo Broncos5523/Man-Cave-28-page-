@@ -294,7 +294,7 @@ def main():
         if remote.count("'use strict';")!=1:
             raise RuntimeError("TV3 receiver top-level guard insertion changed")
         remote=remote.replace("'use strict';",
-                              "'use strict';\\nif(window.top!==window)return;",1)
+                              "'use strict';\nif(window.top!==window)return;",1)
         save_binary(STAGE/"tv3-remote.js",remote.encode())
         if player_html.count("</body>")!=1:
             raise RuntimeError("Original player HTML footer changed")
