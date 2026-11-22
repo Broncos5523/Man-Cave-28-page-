@@ -5,6 +5,8 @@ from tempfile import TemporaryDirectory
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from staging_runtime_images import (ORIGINAL_HELPER, STAGING_HELPER,
+                                    REDSOX_RUNTIME, REDSOX_DETACHED_IMG_ORIGINAL,
+                                    REDSOX_DETACHED_IMG_GUARDED,
                                     clone_staging_runtimes, rewrite_staging_script_links)
 
 class StagingImageSourceTests(unittest.TestCase):
@@ -24,6 +26,29 @@ class StagingImageSourceTests(unittest.TestCase):
                 self.assertNotIn(STAGING_HELPER, original)
                 self.assertIn(STAGING_HELPER, candidate)
                 self.assertEqual(candidate.replace(STAGING_HELPER, ORIGINAL_HELPER), original)
+
+    def test_redsox_detached_image_observer_guard_is_staging_only(self):
+        with TemporaryDirectory() as d:
+            out = Path(d)
+            originals = [f"runtime_test_{i}.js" for i in range(21)]
+            originals.append(REDSOX_RUNTIME)
+            for name in originals:
+                body = b"const a=1;\n" + ORIGINAL_HELPER + b"\nconst b=2;\n"
+                if name == REDSOX_RUNTIME:
+                    body += REDSOX_DETACHED_IMG_ORIGINAL + b"\n"
+                (out/name).write_bytes(body)
+            names, edited = clone_staging_runtimes(out)
+            self.assertEqual(len(names), 22)
+            self.assertEqual(edited, 22)
+            approved = (out/REDSOX_RUNTIME).read_bytes()
+            staging = (out/"staging"/"runtime"/REDSOX_RUNTIME).read_bytes()
+            self.assertIn(REDSOX_DETACHED_IMG_ORIGINAL, approved)
+            self.assertNotIn(REDSOX_DETACHED_IMG_GUARDED, approved)
+            self.assertIn(REDSOX_DETACHED_IMG_GUARDED, staging)
+            self.assertEqual(
+                staging.replace(STAGING_HELPER, ORIGINAL_HELPER)
+                       .replace(REDSOX_DETACHED_IMG_GUARDED, REDSOX_DETACHED_IMG_ORIGINAL),
+                approved)
 
     def test_only_staging_script_urls_are_rewritten(self):
         original = (b'<script src="/runtime_test_1.js?board=page1_nfl"></script>'
