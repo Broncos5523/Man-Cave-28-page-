@@ -1,0 +1,68 @@
+name: Verify Red Sox null-parent guard on separate Cloudflare Preview
+on:
+  push:
+    branches: [fix/redsox-p3-null-root-20261122]
+    paths:
+      - .github/workflows/verify-redsox-null-guard.yml
+      - cloud-28/staging_runtime_images.py
+      - cloud-28/tests/staging_runtime_images.test.py
+      - cloud-28/tests/staging-image-helper.test.mjs
+      - cloud-28/tests/browser-redsox-guard.mjs
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  guard:
+    if: github.ref == 'refs/heads/fix/redsox-p3-null-root-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify original Gold Master and rebuild staging runtime clones
+        run: |
+          python cloud-28/prepare.py
+          python cloud-28/build_cloudflare_assets.py
+      - name: Confirm only Red Sox P3 null guard and prior ESPN helper differ
+        run: |
+          python cloud-28/tests/staging_runtime_images.test.py
+          node --test cloud-28/tests/staging-image-helper.test.mjs cloud-28/tests/request-budget.test.mjs cloud-28/tests/worker-proxy.test.mjs
+      - name: Create isolated Red Sox guard Preview only
+        id: preview
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
+          npx --yes wrangler@latest preview --config cloud-28/wrangler-quota-preview.jsonc --name redsox-guard --json > "$RUNNER_TEMP/redsox-guard-cli.txt"
+          url="$(python - "$RUNNER_TEMP/redsox-guard-cli.txt" <<'PY'
+          import re,sys
+          from pathlib import Path
+          raw=Path(sys.argv[1]).read_text(errors='replace')
+          urls=re.findall(r'https://redsox-guard-[A-Za-z0-9.-]+\.workers\.dev',raw)
+          if not urls:raise SystemExit('Isolated Red Sox Preview URL not found')
+          print(urls[0])
+          PY
+          )"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "ISOLATED_REDSOX_PREVIEW $url"
+      - name: Install Chromium on runner
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Test Red Sox guard repeatedly and verify original 30s rotation
+        env:
+          RED_SOX_PREVIEW: ${{ steps.preview.outputs.url }}
+        run: node cloud-28/tests/browser-redsox-guard.mjs
+      - name: Preserve guard evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: redsox-guard-preview-evidence
+          retention-days: 7
+          if-no-files-found: ignore
+          path: redsox-guard-preview.json
