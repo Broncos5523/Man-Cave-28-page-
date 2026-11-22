@@ -14,7 +14,8 @@ if not token or not account:
 now=datetime.now(timezone.utc)
 today=now.replace(hour=0,minute=0,second=0,microsecond=0)
 yesterday=today-timedelta(days=1)
-periods=[("last_60m",now-timedelta(hours=1),now),
+periods=[("last_10m",now-timedelta(minutes=10),now),
+         ("last_60m",now-timedelta(hours=1),now),
          ("last_24h",now-timedelta(hours=24),now),
          ("current_utc_day",today,now),
          ("prior_utc_day",yesterday,today)]
