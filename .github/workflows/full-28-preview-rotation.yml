@@ -1,0 +1,40 @@
+name: Preview all 28 boards at approved 30-second rotation (read-only)
+on:
+  push:
+    branches: [experiment/espn-image-source-20261122]
+    paths:
+      - .github/workflows/full-28-preview-rotation.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  full-preview-cycle:
+    if: github.ref == 'refs/heads/experiment/espn-image-source-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Chromium (GitHub runner only)
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Create preview-only copy of the existing approved full-cycle test
+        shell: bash
+        run: |
+          sed 's@https://man-cave-28-page.broncos5523.workers.dev@https://img-source-man-cave-28-page.broncos5523.workers.dev@g;s@full-28-board-rotation.json@preview-full-28-board-rotation.json@g;s@cycle-step-@preview-cycle-step-@g;s@cycle-error.png@preview-cycle-error.png@g' \
+            cloud-28/tests/browser-full-cycle.mjs > cloud-28/tests/preview-full-cycle.tmp.mjs
+          grep -q 'img-source-man-cave-28-page.broncos5523.workers.dev' cloud-28/tests/preview-full-cycle.tmp.mjs
+          ! grep -q "'https://man-cave-28-page.broncos5523.workers.dev'" cloud-28/tests/preview-full-cycle.tmp.mjs
+      - name: Watch real 30-second timings across every page and return to first
+        run: node cloud-28/tests/preview-full-cycle.tmp.mjs
+      - name: Save 28-page rotation and screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-complete-28-page-rotation
+          retention-days: 10
+          if-no-files-found: ignore
+          path: |
+            preview-full-28-board-rotation.json
+            preview-cycle-step-*.png
+            preview-cycle-error.png
