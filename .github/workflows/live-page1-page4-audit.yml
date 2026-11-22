@@ -1,0 +1,33 @@
+name: Read-only audit of current Page 1 and Page 4 data on LIVE 28-board TV
+on:
+  push:
+    branches: [diagnose/live-page1-page4-20261122]
+    paths:
+      - .github/workflows/live-page1-page4-audit.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    if: github.ref == 'refs/heads/diagnose/live-page1-page4-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install browser
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Compare 14 LIVE Page 1/4 boards with current API sources (no writes)
+        run: node cloud-28/tests/live-page1-page4-audit.mjs
+      - name: Save fresh stats source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 14-board-live-stats-audit
+          retention-days: 14
+          if-no-files-found: ignore
+          path: page1-page4-live-audit.json
