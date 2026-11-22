@@ -1,3 +1,4 @@
+# Run after direct ESPN image bypass Preview is live; compare with previous 85-call profile.
 name: Profile only isolated 28-board Preview proxy traffic
 on:
   push:
