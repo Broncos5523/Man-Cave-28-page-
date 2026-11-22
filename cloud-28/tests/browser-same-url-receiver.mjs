@@ -41,6 +41,9 @@ try{
  const response=await page.goto(target,{waitUntil:'domcontentloaded',timeout:45000});
  assert.equal(response?.status(),200);
  await page.waitForFunction(()=>window.__MC_TV3_REMOTE__?.getState?.().connected===true,null,{timeout:18000});
+ // The Firebase SDK mock responds instantly; the real approved player still
+ // initializes its 28-board manifest asynchronously. Wait for both layers.
+ await page.waitForFunction(()=>typeof window.__MC_PRODUCTION?.current==='string',null,{timeout:65000});
  const opening=await page.evaluate(()=>({
    attached:!!window.__MC_TV3_REMOTE__,
    initial:window.__MC_TV3_REMOTE__.getState(),
