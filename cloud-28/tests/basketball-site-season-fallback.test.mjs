@@ -26,7 +26,7 @@ test('NBA and WNBA exact season and team athlete rows; never career totals or pr
   assert.ok(!JSON.stringify(converted).includes('22.8'));
  }
 });
-test('CBB's documented missing season-type filter is accepted only with exact 2027 Arizona team row',()=>{
+test("CBB missing season-type filter is accepted only with exact 2027 Arizona team row",()=>{
  const converted=siteBasketballSeasonStats(site(2027,'12',null),
   {league:'mens-college-basketball',team:'12',season:2027,athleteId:'5351296'});
  assert.equal(currentPlayerMap(converted,2027,'5351296').avgThreePointFieldGoalsMade,2.4);
