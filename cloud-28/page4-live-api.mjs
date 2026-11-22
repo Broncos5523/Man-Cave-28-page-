@@ -1,6 +1,7 @@
 import {page4Teams,buildPage4,currentPlayerMap} from './page4-live-contract.mjs';
 import {contextOf} from './remaining-board-contracts.mjs';
 import {requireData as need} from './board-contract-common.mjs';
+import {verifiedBasketballSiteSeasonStat} from './page4-site-season-fallback.mjs';
 export async function page4LiveApi(request,ctx,read){
   const answer=(data,status=200)=>{
     const checked=Date.parse(data.updatedAt||data.fetchedAt);
@@ -31,8 +32,26 @@ export async function page4LiveApi(request,ctx,read){
     }
     const results=await Promise.allSettled((roster.athletes||[]).map(async p=>{
       const id=String(p.id);if(!/^\d+$/.test(id))return null;
-      return [id,await read('https://sports.core.api.espn.com/v2/sports/basketball/leagues/'+config.league+
-        '/seasons/'+year+'/types/2/athletes/'+id+'/statistics/0?lang=en&region=us',ctx)];
+      const core='https://sports.core.api.espn.com/v2/sports/basketball/leagues/'+config.league+
+        '/seasons/'+year+'/types/2/athletes/'+id+'/statistics/0?lang=en&region=us';
+      try{
+        const data=await read(core,ctx);
+        currentPlayerMap(data,year,id);
+        return [id,data];
+      }catch{
+        // Core is frequently HTTP 403 from Cloudflare. Rescue only using an
+        // official Site API row that matches the current regular season,
+        // requested athlete, and exact current team. Never use career totals.
+        const sitePlayer='https://site.api.espn.com/apis/common/v3/sports/basketball/'+
+          config.league+'/athletes/'+id+'/stats?season='+year+'&seasontype=2';
+        const raw=await read(sitePlayer,ctx);
+        const mapped=verifiedBasketballSiteSeasonStat(raw,{
+          league:config.league,team:config.team,year,athlete:id,
+          regularSeasonVerified:context.seasonType===2
+        });
+        currentPlayerMap(mapped,year,id);
+        return [id,mapped];
+      }
     }));
     const stats=Object.fromEntries(results.filter(r=>r.status==='fulfilled'&&r.value).map(r=>r.value));
     return answer(buildPage4(board,year,roster,stats));
