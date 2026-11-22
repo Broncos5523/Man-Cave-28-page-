@@ -220,7 +220,6 @@ def main():
             scripts=(
                 b'<script src="/production/spotlight-state.js"></script>'
                 b'<script src="/staging/board-standalone-host.js?v=standalone-r1"></script>'
-                b'<script src="/staging/direct-images.js?v=direct-r1"></script>'
                 b'<script src="/staging/espn-fetch-shim.js?v=public-cache-r1"></script>'
             )
             if b'/staging/espn-fetch-shim.js' in response:
@@ -229,7 +228,6 @@ def main():
             save_binary(STAGE/"boards"/(bid+".html"),response)
         save_binary(OUT/"production"/"spotlight-state.js",(approved.APP/"production"/"spotlight-state.js").read_bytes())
         save_binary(STAGE/"board-standalone-host.js",(HERE/"cloudflare-standalone-board-host.js").read_bytes())
-        save_binary(STAGE/"direct-images.js",(HERE/"staging-direct-images.js").read_bytes())
         save_binary(STAGE/"espn-fetch-shim.js",(HERE/"cloudflare-public-feed-shim.js").read_bytes())
         # Export the approved production player into a separate staging URL.
         # Only transport URLs are rewritten, not timing, animation, page order,

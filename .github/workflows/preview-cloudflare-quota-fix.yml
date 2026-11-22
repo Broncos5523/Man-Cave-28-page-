@@ -5,8 +5,6 @@ on:
     paths:
       - .github/workflows/preview-cloudflare-quota-fix.yml
       - cloud-28/wrangler-quota-preview.jsonc
-      - cloud-28/staging-direct-images.js
-      - cloud-28/tests/direct-image-proxy.test.mjs
       - cloud-28/build_cloudflare_visual_staging.py
   workflow_dispatch:
 
@@ -43,7 +41,7 @@ jobs:
       - name: Run quota, security and no-production guard tests
         shell: bash
         run: |
-          node --test cloud-28/tests/worker-proxy.test.mjs cloud-28/tests/request-budget.test.mjs cloud-28/tests/direct-image-proxy.test.mjs
+          node --test cloud-28/tests/worker-proxy.test.mjs cloud-28/tests/request-budget.test.mjs
           python - <<'PY'
           import json
           from pathlib import Path
@@ -56,7 +54,6 @@ jobs:
           assert len(list((asset/'staging/boards').glob('*.html')))==28
           assert (asset/'staging/local-state.js').is_file()
           assert (asset/'staging/espn-fetch-shim.js').is_file()
-          assert (asset/'staging/direct-images.js').is_file()
           assert (asset/'staging/player.html').is_file()
           print('PASS_PREVIEW_ISOLATION_AND_ALL_28_APPROVED_BOARDS')
           PY
@@ -109,7 +106,7 @@ jobs:
           python - <<'PY'
           import json,os,urllib.request
           base=os.environ['PREVIEW_URL'].rstrip('/')
-          for path in ('/migration-api/health','/staging/boards.json','/staging/player.html','/staging/local-state.js','/staging/direct-images.js','/staging/boards/page1_nfl'):
+          for path in ('/migration-api/health','/staging/boards.json','/staging/player.html','/staging/local-state.js','/staging/boards/page1_nfl'):
               req=urllib.request.Request(base+path,headers={'User-Agent':'Mozilla/5.0 ManCavePreviewSmoke/1.0'})
               with urllib.request.urlopen(req,timeout=25) as r:
                   assert r.status==200,(path,r.status)
@@ -123,10 +120,8 @@ jobs:
                   assert b'/staging/local-state.js?v=local-r1' in raw
               if path=='/staging/local-state.js':
                   assert b'__MC_STAGING_LOCAL_STATE__' in raw
-              if path=='/staging/direct-images.js':
-                  assert b'__MC_STAGING_DIRECT_IMAGE_URL__' in raw
               if path=='/staging/boards/page1_nfl':
-                  assert b'/staging/direct-images.js?v=direct-r1' in raw
+                  assert b'/staging/espn-fetch-shim.js?v=public-cache-r1' in raw
               print('PASS_PREVIEW_SMOKE',path)
           PY
       - name: Summarize safe Preview URL
