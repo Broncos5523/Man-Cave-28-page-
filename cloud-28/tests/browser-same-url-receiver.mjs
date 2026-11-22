@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const base=process.env.PREVIEW_URL;
-assert.match(base||'',/^https:\/\/same-url-[a-z0-9.-]+\.workers\.dev\/?$/);
+assert.match(base||'',/^https:\/\/(?:same-url|freshness)-[a-z0-9.-]+\.workers\.dev\/?$/);
 const target=base+'/staging/player.html?rotate=off';
 const mock=[
 "(function(){",
