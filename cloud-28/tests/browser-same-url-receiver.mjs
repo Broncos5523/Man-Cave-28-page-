@@ -16,7 +16,7 @@ const mock=[
 "    window.__MC_TEST_COMMAND__=value=>success({val:()=>value});",
 "    window.__MC_TEST_COMMAND__({type:'rotation'});",
 "   },set(){throw Error('Firebase write forbidden');},update(){throw Error('Firebase write forbidden');}};",
-"  }}}}",
+"  }}}",
 " };",
 " window.firebase={",
 "  app(){if(!window.__MC_TEST_APP__)throw Error('App absent');return window.__MC_TEST_APP__;},",
