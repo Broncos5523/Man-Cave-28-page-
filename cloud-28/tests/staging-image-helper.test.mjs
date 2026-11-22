@@ -28,7 +28,15 @@ test('all cloned runtimes preserve the original outside of exact image routing h
    if(!a)assert.equal(clone,original);
    else {
      assert.ok(b,'Staging clone missing known helper '+name);
-     assert.equal(clone.replace(b,a),original);
+     let reverted=clone.replace(b,a);
+     if(name==='runtime_redsox_p3_v7t.js'){
+       const safe="  function proxyImages(root=document) {\n    if(!root || typeof root.querySelectorAll!=='function')return;\n    $('img[src]',root).forEach(img=>{";
+       const prior="  function proxyImages(root=document) {\n    $('img[src]',root).forEach(img=>{";
+       assert.ok(clone.includes(safe),'Red Sox P3 guard must exist exactly in staging');
+       assert.ok(!original.includes(safe),'Approved original Red Sox must remain unchanged');
+       reverted=reverted.replace(safe,prior);
+     }
+     assert.equal(reverted,original);
    }
  }
 });
@@ -57,4 +65,12 @@ test('board HTML uses staging-only runtime files, originals remain available',()
    assert.match(markup,/\/staging\/runtime\/runtime_[a-z0-9_]+\.js\?board=/);
    assert.doesNotMatch(markup,/src="\/runtime_[a-z0-9_]+\.js/);
  }
+});
+
+test('Red Sox P3 null-parent observer guard exists only in staging clone',()=>{
+ const stage=rawStage('runtime_redsox_p3_v7t.js');
+ const original=rawRoot('runtime_redsox_p3_v7t.js');
+ const marker="if(!root || typeof root.querySelectorAll!=='function')return;";
+ assert.equal(stage.split(marker).length-1,1);
+ assert.equal(original.includes(marker),false);
 });
