@@ -23,7 +23,8 @@ jobs:
             '/site/v2/sports/football/college-football/teams/12?season=2026',
             '/site/v2/sports/football/college-football/teams/12/roster?season=2026',
             '/site/v3/sports/football/college-football/leaders?season=2026&seasontype=2&groups=80',
-            '/common/v3/sports/football/college-football/athletes/4801717/stats?season=2026&seasontype=2'
+            '/common/v3/sports/football/college-football/athletes/4801717/stats?season=2026&seasontype=2',
+            '/common/v3/sports/football/college-football/statistics/byathlete?season=2026&seasontype=2&groups=80&team=12&limit=8&sort=passing.passingYards:desc'
           ];
           const results=[];
           for (const path of paths){
@@ -38,7 +39,8 @@ jobs:
                     athleteRef:x.athlete?.$ref,teamId:x.team?.id
                   })),stats:(c.stats||[]).slice(0,2).map(x=>({name:x.name,value:x.value}))
                 })),
-                leaders:(data?.leaders||[]).slice(0,8).map(c=>({name:c.name,keys:Object.keys(c),leaders:(c.leaders||[]).slice(0,2).map(x=>({value:x.value,athlete:x.athlete?.displayName,id:x.athlete?.id}))})),
+                leaders:Array.isArray(data?.leaders)?data.leaders.slice(0,8).map(c=>({name:c.name,keys:Object.keys(c),leaders:(c.leaders||[]).slice(0,2).map(x=>({value:x.value,athlete:x.athlete?.displayName,id:x.athlete?.id}))})):Object.entries(data?.leaders||{}).slice(0,8).map(([k,v])=>({key:k,type:Array.isArray(v)?'array':typeof v,keys:v&&typeof v==='object'?Object.keys(v).slice(0,10):[]})),
+                athletes:(data?.athletes||[]).slice(0,3).map(x=>({keys:Object.keys(x).slice(0,12),athlete:x.athlete?.displayName,teamId:x.team?.id})),
                 results:(data?.results||{}).stats?{statsKeys:Object.keys(data.results.stats),categories:(data.results.stats.categories||[]).slice(0,8).map(c=>({name:c.name,names:c.stats?.slice(0,3).map(x=>x.name)}))}:undefined,
                 team:data?.team?{id:data.team.id,name:data.team.displayName}:undefined
               };
