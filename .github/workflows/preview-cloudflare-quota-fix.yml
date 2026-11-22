@@ -1,0 +1,107 @@
+name: Isolated Cloudflare quota-fix Preview (never production)
+on:
+  push:
+    branches: [fix/cloudflare-request-budget-20261119]
+    paths:
+      - .github/workflows/preview-cloudflare-quota-fix.yml
+      - cloud-28/wrangler-quota-preview.jsonc
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-quota-preview-pr2
+  cancel-in-progress: false
+
+jobs:
+  quota-preview:
+    if: github.ref == 'refs/heads/fix/cloudflare-request-budget-20261119'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify credentials exist without exposing their values
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "CLOUDFLARE_ACCOUNT_ID unavailable"; exit 1; }
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "CLOUDFLARE_API_TOKEN unavailable"; exit 1; }
+      - name: Verify SHA-locked artwork and rebuild static staging
+        shell: bash
+        run: |
+          python cloud-28/prepare.py
+          python cloud-28/build_cloudflare_assets.py
+      - name: Run quota, security and no-production guard tests
+        shell: bash
+        run: |
+          node --test cloud-28/tests/worker-proxy.test.mjs cloud-28/tests/request-budget.test.mjs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          config=json.loads(Path('cloud-28/wrangler-quota-preview.jsonc').read_text())
+          assert config['name']=='man-cave-28-page'
+          assert config['previews']=={}
+          assert config['assets']['run_worker_first']==[
+              '/proxy','/migration-api/*','/staging/api/*','/api/board/*','/production/api/*']
+          asset=Path('cloud-28/cloudflare-static-dist')
+          assert len(list((asset/'staging/boards').glob('*.html')))==28
+          assert (asset/'staging/local-state.js').is_file()
+          assert (asset/'staging/espn-fetch-shim.js').is_file()
+          assert (asset/'staging/player.html').is_file()
+          print('PASS_PREVIEW_ISOLATION_AND_ALL_28_APPROVED_BOARDS')
+          PY
+      - name: Upload isolated PR 2 Preview (never activate production)
+        id: preview
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Cloudflare's Preview command isolates branch code/resources;
+          # never use "wrangler deploy" or "wrangler versions deploy".
+          npx --yes wrangler@latest preview --config cloud-28/wrangler-quota-preview.jsonc --name pr-2 --json > "$RUNNER_TEMP/quota-preview.json"
+          preview_url="$(jq -er '.preview.urls[0]' "$RUNNER_TEMP/quota-preview.json")"
+          case "$preview_url" in
+            https://*.workers.dev|https://*.workers.dev/) ;;
+            *) echo "Unexpected Preview URL"; exit 1;;
+          esac
+          echo "preview_url=$preview_url" >> "$GITHUB_OUTPUT"
+          echo "Cloudflare PR 2 Preview: $preview_url"
+          echo "Production Worker deployment not modified."
+      - name: Bounded nonmutating Preview smoke test
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.preview_url }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,os,urllib.request
+          base=os.environ['PREVIEW_URL'].rstrip('/')
+          for path in ('/migration-api/health','/staging/boards.json','/staging/player.html','/staging/local-state.js'):
+              with urllib.request.urlopen(base+path,timeout=25) as r:
+                  assert r.status==200,(path,r.status)
+                  raw=r.read(100000)
+              if path=='/migration-api/health':
+                  health=json.loads(raw)
+                  assert health['ok'] is True
+              if path=='/staging/boards.json':
+                  assert len(json.loads(raw)['boards'])==28
+              if path=='/staging/player.html':
+                  assert b'/staging/local-state.js?v=local-r1' in raw
+              if path=='/staging/local-state.js':
+                  assert b'__MC_STAGING_LOCAL_STATE__' in raw
+              print('PASS_PREVIEW_SMOKE',path)
+          PY
+      - name: Summarize safe Preview URL
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.preview_url }}
+        run: |
+          echo "## Cloudflare quota-fix Preview" >> "$GITHUB_STEP_SUMMARY"
+          echo "URL: $PREVIEW_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "All 28 original visuals preserved; no live production release." >> "$GITHUB_STEP_SUMMARY"
