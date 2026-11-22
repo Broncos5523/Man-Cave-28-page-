@@ -1,0 +1,17 @@
+name: Identify exact Page4 503 cause and current ESPN verified athlete fields (read-only)
+on:
+  push:
+    branches: [diagnose/live-page1-page4-20261122]
+    paths:
+      - .github/workflows/probe-p4-freshness.yml
+permissions:
+  contents: read
+jobs:
+  probe:
+    if: github.ref == 'refs/heads/diagnose/live-page1-page4-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read official current-season Page 4 response and source fields
+        run: python cloud-28/tests/p4-error-and-site-fields.py
