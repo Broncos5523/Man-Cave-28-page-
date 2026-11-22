@@ -1,0 +1,30 @@
+name: Inspect Live Lookin on current 32 Onn receiver without changing controller or TV
+on:
+  push:
+    branches: [fix/controller-on-original-player-url-20261122]
+    paths:
+      - .github/workflows/check-live-lookin-iframe.yml
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.ref == 'refs/heads/fix/controller-on-original-player-url-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Diagnose current selected Live Lookin iframe read-only
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+          node cloud-28/tests/live-lookin-32-tv-diagnostic.mjs
+      - name: Save proof of iframe visibility and HTTP response
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-lookin-32-onscreen-diagnostic
+          retention-days: 3
+          if-no-files-found: ignore
+          path: |
+            live-lookin-tv-receiver-diagnostic.json
+            live-lookin-32-tv-headless.png
