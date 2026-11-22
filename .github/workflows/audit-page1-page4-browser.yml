@@ -1,0 +1,28 @@
+name: Compare current stats to live Page1/Page4 board DOM (no deployment)
+on:
+  push:
+    branches: [audit/page1-page4-freshness-20261122]
+    paths: [.github/workflows/audit-page1-page4-browser.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.ref == 'refs/heads/audit/page1-page4-freshness-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install headless browser
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Inspect all 7 Page1 and 7 Page4 source versus on-screen text
+        run: node cloud-28/tests/browser-seven-page1-seven-page4.mjs
+      - name: Preserve read-only board freshness matrix
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 14-board-current-dom-data-audit
+          retention-days: 7
+          if-no-files-found: ignore
+          path: seven-page1-seven-page4-browser.json
