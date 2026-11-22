@@ -299,7 +299,7 @@ def main():
         if player_html.count("</body>")!=1:
             raise RuntimeError("Original player HTML footer changed")
         player_html=player_html.replace("</body>",
-            '<script defer src="/staging/tv3-remote.js?v=same-address-r1"></script></body>')
+            '<script defer src="/staging/tv3-remote.js?v=stats-refresh-r2"></script></body>')
         save_binary(STAGE/"player.html",player_html.encode())
         tv3_html=player_html
         # The owner's fixed ?rotate=ccw receiver URL already orients the TV.
