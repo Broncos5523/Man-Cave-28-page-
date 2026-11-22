@@ -293,8 +293,13 @@ def main():
         # independent Onn screens/third Firebase assignment.
         if remote.count("'use strict';")!=1:
             raise RuntimeError("TV3 receiver top-level guard insertion changed")
+        # The 32-inch Onn browser may host the unchanged player URL in a
+        # fullscreen app iframe. An unconditional top-window guard silently
+        # disables Firebase control there. Exclude only the known GitHub Pages
+        # Left/Right wing receiver origin; keep third-TV commands off wings.
         remote=remote.replace("'use strict';",
-                              "'use strict';\nif(window.top!==window)return;",1)
+                              "'use strict';\\n"+
+                              "if(window.top!==window && /^https:\\/\\/broncos5523\\.github\\.io(?:\\/|$)/i.test(document.referrer||''))return;",1)
         save_binary(STAGE/"tv3-remote.js",remote.encode())
         if player_html.count("</body>")!=1:
             raise RuntimeError("Original player HTML footer changed")
