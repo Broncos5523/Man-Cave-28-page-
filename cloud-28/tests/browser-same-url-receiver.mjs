@@ -69,12 +69,25 @@ try{
    assert.equal(result.originalPlayerPresent,true);
    steps.push({name:'controller board command',board,...result});
  }
+ // Sending the SAME board again must reopen its iframe with a fresh
+ // assignment token. The previous receiver ignored identical board IDs.
+ const originalSrc=await page.evaluate(()=>document.getElementById('mc-tv3-single-board')?.src);
+ const newer=Date.now()+20000;
+ await page.evaluate(stamp=>window.__MC_TEST_COMMAND__({
+   type:'board',board:'page3_broncos',updatedAt:stamp}),newer);
+ await page.waitForFunction(stamp=>
+   document.getElementById('mc-tv3-single-board')?.src.includes('mcSend='+stamp),
+   newer,{timeout:10000});
+ const refreshedSrc=await page.evaluate(()=>document.getElementById('mc-tv3-single-board')?.src);
+ assert.notEqual(refreshedSrc,originalSrc,'Same-page send must trigger updated frame source');
+ steps.push({name:'same-board re-send reloads current stats',sameOuterUrl:target,
+   oldSrc:originalSrc,newSrc:refreshedSrc});
  await page.evaluate(()=>window.__MC_TEST_COMMAND__({type:'rotation',updatedAt:Date.now()}));
  await page.waitForFunction(()=>window.__MC_TV3_REMOTE__?.getState?.().desired==='rotation' &&
    !document.getElementById('mc-tv3-single-board'),null,{timeout:12000});
  steps.push({name:'return to rotation',state:await page.evaluate(()=>window.__MC_TV3_REMOTE__.getState())});
  assert.equal(errors.length,0,'Page errors: '+errors.join(' | '));
- console.log('PASS_ORIGINAL_URL_CONTROLLER_SEND_AND_ROTATION',JSON.stringify({url:target,commands:2,errors:errors.length}));
+ console.log('PASS_ORIGINAL_URL_CONTROLLER_SEND_AND_ROTATION',JSON.stringify({url:target,commands:3,sameBoardRefreshed:true,errors:errors.length}));
 }finally{
  fs.writeFileSync('same-address-receiver-result.json',JSON.stringify({steps,errors,
   exactPath:'/staging/player.html?rotate=off',mockFirebase:true},null,2));
