@@ -1,0 +1,63 @@
+name: Validate official Site player-stat fallback for 3 basketball Page4 boards (isolated)
+on:
+  push:
+    branches: [fix/live-page4-basketball-site-fallback-20261122]
+    paths:
+      - .github/workflows/verify-p4-site-fallback.yml
+permissions:
+  contents: read
+jobs:
+  isolated-verified:
+    if: github.ref == 'refs/heads/fix/live-page4-basketball-site-fallback-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test exact-year Site averages contract and original Core compatibility
+        run: |
+          node --test cloud-28/tests/page4-site-fallback.test.mjs cloud-28/tests/page4-live.test.mjs
+          node --test cloud-28/tests/request-budget.test.mjs cloud-28/tests/worker-proxy.test.mjs
+      - name: Generate all 28 approved boards unchanged
+        run: |
+          python cloud-28/prepare.py
+          python cloud-28/build_cloudflare_assets.py
+          python cloud-28/tests/staging_runtime_images.test.py
+      - name: Publish isolated Cloudflare preview (NOT production)
+        id: preview
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 preview --config cloud-28/wrangler-quota-preview.jsonc --name p4-fresh --json > "$RUNNER_TEMP/isolated-p4.txt"
+          url="$(python - "$RUNNER_TEMP/isolated-p4.txt" <<'PY'
+          import re,sys
+          from pathlib import Path
+          data=Path(sys.argv[1]).read_text(errors='replace')
+          urls=re.findall(r'https://p4-fresh-[A-Za-z0-9.-]+\.workers\.dev',data)
+          assert urls,'Cloudflare isolated Preview missing'
+          print(urls[0])
+          PY
+          )"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "ISOLATED_PAGE4_FALLBACK_PREVIEW $url"
+      - name: Install browser
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Confirm real source fallback displays all 3 current-season player boards
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: node cloud-28/tests/browser-p4-site-fallback-preview.mjs
+      - name: Preserve player-source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: page4-site-current-season-fallback
+          retention-days: 12
+          if-no-files-found: ignore
+          path: current-page4-fallback-preview-result.json
