@@ -146,7 +146,7 @@ test("Staging shim rewrites only Broncos NFL player-stat requests",async()=>{
   const urls=[];
   function build(path){
     const win={fetch:async url=>{urls.push(url);return new Response("ok")}};
-    const ctx={window:win,location:{pathname:path},URL,encodeURIComponent,Set};
+    const ctx={window:win,location:{pathname:path},URL,Response,Headers,encodeURIComponent,Set};
     runInNewContext(source,ctx,{filename:"cloudflare-public-feed-shim.js"});
     return win;
   }

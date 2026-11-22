@@ -1,0 +1,62 @@
+name: Audit ESPN image proxy creation sites (no deploy)
+on:
+  push:
+    branches: [fix/cloudflare-request-budget-20261119]
+    paths:
+      - .github/workflows/audit-quota-image-callsite.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.ref == 'refs/heads/fix/cloudflare-request-budget-20261119'
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rebuild exact-byte approved Gold Master staging (offline origin)
+        run: |
+          python cloud-28/prepare.py
+          python cloud-28/build_cloudflare_assets.py
+      - name: Locate image URL creation in original source and staging copies
+        run: |
+          python - <<'PY'
+          import pathlib,re
+          root=pathlib.Path('cloud-28/cloudflare-static-dist')
+          bdir=root/'staging'/'boards'
+          terms=['/proxy?url','proxied(', 'encodeURIComponent(', 'img.src', 'new Image(', 'createElement(', '.src=', 'setAttribute(']
+          for name in ('page1_nfl','page2_nfl','page4_broncos','page1_nba','page1_cbb','page4_bruins'):
+              file=bdir/(name+'.html')
+              text=file.read_text(errors='replace')
+              lines=text.splitlines()
+              matches=[]
+              for no,line in enumerate(lines,1):
+                  if any(v in line for v in terms):
+                      if len(matches)>=18:break
+                      cleaned=line.strip()
+                      matches.append({'line':no,'snippet':cleaned[:340]})
+              print('IMAGE_CALLSITE',name,'lines',len(lines),'matches',repr(matches),flush=True)
+          # Explicitly examine any approved original runtime JS files included as static.
+          for path in sorted(root.glob('runtime*.js'))[:6]:
+              data=path.read_text(errors='replace')
+              for phrase in ('/proxy?url','function proxied','img.src'):
+                  if phrase in data:
+                      i=data.index(phrase)
+                      print('RUNTIME_IMAGE_CALLSITE',path.name,phrase,repr(data[max(0,i-130):i+220]),flush=True)
+
+          print('IMAGE_HELPER_AUDIT_START')
+          for path in sorted(root.glob('runtime*.js')):
+              data=path.read_text(errors='replace')
+              anchor='const imageURL = value => {'
+              i=data.find(anchor)
+              if i<0:continue
+              import hashlib
+              snippet=data[i:i+850]
+              print('IMAGE_HELPER_SOURCE',path.name,'sha12',hashlib.sha256(snippet.encode()).hexdigest()[:12],
+                    'length',len(snippet),'body',repr(snippet),flush=True)
+          for name in ('page1_nfl','page2_nfl','page1_nba','page1_cbb','page4_broncos'):
+              source=(bdir/(name+'.html')).read_text(errors='replace')
+              refs=re.findall(r'(?:src=|import\s*\()\s*["\']([^"\']+\.js[^"\']*)',source)
+              print('BOARD_RUNTIME_REFS',name,refs[:20],flush=True)
+          print('IMAGE_HELPER_AUDIT_END')
+          PY

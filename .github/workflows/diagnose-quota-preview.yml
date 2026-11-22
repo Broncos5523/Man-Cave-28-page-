@@ -1,0 +1,38 @@
+name: Diagnose existing quota Preview access (read-only)
+on:
+  push:
+    branches: [fix/cloudflare-request-budget-20261119]
+    paths:
+      - .github/workflows/diagnose-quota-preview.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    if: github.ref == 'refs/heads/fix/cloudflare-request-budget-20261119'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect only existing Preview (no Worker uploads)
+        shell: bash
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.error,re
+          base="https://pr-2-man-cave-28-page.broncos5523.workers.dev"
+          for path in ("/migration-api/health","/staging/boards.json","/staging/player.html"):
+              req=urllib.request.Request(base+path,headers={"User-Agent":"Mozilla/5.0 ManCavePreviewSmoke/1.0","Accept":"application/json,text/html,*/*"})
+              try:
+                  reply=urllib.request.urlopen(req,timeout=12)
+              except urllib.error.HTTPError as err:
+                  reply=err
+              except Exception as err:
+                  print("PREVIEW_PROBE_ERROR",path,type(err).__name__,str(err)[:150],flush=True);continue
+              body=reply.read(1100).decode("utf-8","replace")
+              detail=re.sub(r"<[^>]*>"," ",body)
+              detail=" ".join(detail.split())[:350]
+              print("PREVIEW_PROBE",path,"http",reply.status,
+                    "type",reply.headers.get("Content-Type"),
+                    "server",reply.headers.get("Server"),
+                    "location",reply.headers.get("Location"),
+                    "snippet",detail,flush=True)
+          PY
