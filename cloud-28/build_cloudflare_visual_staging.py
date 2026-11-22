@@ -260,10 +260,10 @@ def main():
             '<script src="/staging/local-state.js?v=local-r1"></script>'+
             '<script defer src="/staging/player.js"></script>')
         save_binary(STAGE/"local-state.js",(HERE/"staging-local-state.js").read_bytes())
-        save_binary(STAGE/"player.html",player_html.encode())
-        # Firebase TV3 receiver is separated from the ordinary rotation preview.
-        # It listens to existing screens/third assignments but never writes
-        # Firebase, and its overlay URLs point only to Cloudflare staging.
+        # Same existing /staging/player.html address now receives the
+        # controller's screens/third assignments. Do not change the URL,
+        # player animations, 28-board rotation, or Firebase write permissions.
+        # /staging/tv3.html remains a compatible alias for previous links.
         remote=(HERE/"tv3-remote.js").read_text()
         start=remote.find("function report(event,detail){")
         stop=remote.find("window.__MC_TV3_REMOTE__=",start)
@@ -288,11 +288,20 @@ def main():
             raise RuntimeError("Existing TV3 Firebase receiver binding missing")
         if "database().ref('screens/third').set(" in remote:
             raise RuntimeError("TV3 receiver may not write assignments")
+        # The controller receiver must run only as a top-level TV browser.
+        # Never cause embedded 28-board players on wing TVs to consume the
+        # independent Onn screens/third Firebase assignment.
+        if remote.count("'use strict';")!=1:
+            raise RuntimeError("TV3 receiver top-level guard insertion changed")
+        remote=remote.replace("'use strict';",
+                              "'use strict';\\nif(window.top!==window)return;",1)
         save_binary(STAGE/"tv3-remote.js",remote.encode())
         if player_html.count("</body>")!=1:
             raise RuntimeError("Original player HTML footer changed")
-        tv3_html=player_html.replace("</body>",
-            '<script defer src="/staging/tv3-remote.js?v=cloudflare-staging-r1"></script></body>')
+        player_html=player_html.replace("</body>",
+            '<script defer src="/staging/tv3-remote.js?v=same-address-r1"></script></body>')
+        save_binary(STAGE/"player.html",player_html.encode())
+        tv3_html=player_html
         # The owner's fixed ?rotate=ccw receiver URL already orients the TV.
         # Do not overlay an on-screen Rotate tab/menu over approved content.
         # Preserve query-controlled cw/ccw/off and the Firebase receiver.
