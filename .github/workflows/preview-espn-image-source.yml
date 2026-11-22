@@ -1,0 +1,90 @@
+name: Host and profile isolated ESPN source-image Preview
+on:
+  push:
+    branches: [experiment/espn-image-source-20261122]
+    paths:
+      - .github/workflows/preview-espn-image-source.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: isolated-esnp-image-source
+  cancel-in-progress: false
+jobs:
+  isolate-and-profile:
+    if: github.ref == 'refs/heads/experiment/espn-image-source-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Regenerate original Gold Master and staging-only runtime clones
+        run: |
+          python cloud-28/prepare.py
+          python cloud-28/build_cloudflare_assets.py
+      - name: Verify image transport and original source integrity
+        run: |
+          python cloud-28/tests/staging_runtime_images.test.py
+          node --test cloud-28/tests/staging-image-helper.test.mjs cloud-28/tests/request-budget.test.mjs cloud-28/tests/worker-proxy.test.mjs
+      - name: Publish only an isolated img-source Preview
+        id: preview
+        env:
+          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
+          npx --yes wrangler@latest preview --config cloud-28/wrangler-quota-preview.jsonc --name img-source --json > "$RUNNER_TEMP/image-preview.txt"
+          preview_url="$(python - "$RUNNER_TEMP/image-preview.txt" <<'PY'
+          import re,sys
+          from pathlib import Path
+          raw=Path(sys.argv[1]).read_text(errors="replace")
+          matches=re.findall(r'https://img-source-[A-Za-z0-9.-]+\.workers\.dev',raw)
+          if not matches:raise SystemExit("No verified isolated Preview URL")
+          print(matches[0])
+          PY
+          )"
+          echo "url=$preview_url" >> "$GITHUB_OUTPUT"
+          echo "ISOLATED_IMAGE_PREVIEW $preview_url"
+      - name: Confirm original and staging helper serve as separate files
+        env:
+          PREVIEW_URL: \${{ steps.preview.outputs.url }}
+        run: |
+          python - <<'PY'
+          import os,urllib.request
+          root=os.environ['PREVIEW_URL']
+          for path in ('/staging/boards/page1_nfl','/runtime_nfl_p1_v7j.js',
+                       '/staging/runtime/runtime_nfl_p1_v7j.js'):
+              with urllib.request.urlopen(urllib.request.Request(root+path,
+                  headers={'User-Agent':'Mozilla/5.0 PreviewVerify/1.0'}),timeout=25) as r:
+                  assert r.status==200,(path,r.status)
+                  data=r.read(250000)
+              if path=='/runtime_nfl_p1_v7j.js':
+                  assert b"origin+'/proxy?url='+encodeURIComponent(value)" in data
+              if path=='/staging/runtime/runtime_nfl_p1_v7j.js':
+                  assert b"target.hostname==='a.espncdn.com'" in data
+              if path=='/staging/boards/page1_nfl':
+                  assert b'/staging/runtime/runtime_nfl_p1_v7j.js' in data
+              print('ISOLATED_IMAGE_SMOKE_PASS',path)
+          PY
+      - name: Install Chromium on GitHub runner, not user's devices
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Compare browser proxy traffic and image loading
+        env:
+          PREVIEW_URL: \${{ steps.preview.outputs.url }}
+        run: node cloud-28/tests/browser-image-source-preview.mjs
+      - name: Save source-image experiment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: isolated-image-source-evidence
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            image-source-profile.json
+            image-source-preview.png
