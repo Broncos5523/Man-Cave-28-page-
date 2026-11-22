@@ -4,6 +4,7 @@ on:
     branches: [experiment/espn-image-source-20261122]
     paths:
       - .github/workflows/read-cloudflare-quota.yml
+      - cloud-28/tests/cloudflare-usage-readonly.py
   workflow_dispatch:
 permissions:
   contents: read
