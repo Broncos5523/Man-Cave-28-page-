@@ -31,6 +31,18 @@ STAGING_HELPER = (
 
 # Rewrite only named JavaScript references in generated STAGING board HTML.
 # No JS prototype overrides, DOM watchers, injected widgets, CSS or HTML art.
+# Existing Red Sox Page 3 MutationObserver can briefly pass null for a
+# detached IMG.parentNode; skip only that impossible query root.
+REDSOX_ORIGINAL = (
+    b"  function proxyImages(root=document) {\n"
+    b"    $('img[src]',root).forEach(img=>{"
+)
+REDSOX_SAFE = (
+    b"  function proxyImages(root=document) {\n"
+    b"    if(!root || typeof root.querySelectorAll!=='function')return;\n"
+    b"    $('img[src]',root).forEach(img=>{"
+)
+
 RUNTIME_REF = re.compile(
     rb'''(?P<quote>["'])/(?P<file>runtime(?:_[a-z0-9]+)*\.js)(?=[?"'])'''
 )
@@ -50,6 +62,10 @@ def clone_staging_runtimes(output: Path):
         if count > 1:
             raise RuntimeError(f"Unexpected multiple imageURL helpers: {path.name}")
         updated = original.replace(ORIGINAL_HELPER, STAGING_HELPER) if count else original
+        if path.name == "runtime_redsox_p3_v7t.js":
+            if updated.count(REDSOX_ORIGINAL) != 1:
+                raise RuntimeError("Red Sox P3 null parent guard anchor changed")
+            updated = updated.replace(REDSOX_ORIGINAL, REDSOX_SAFE, 1)
         if count:
             replaced += 1
         (dest / path.name).write_bytes(updated)
