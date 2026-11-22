@@ -1,0 +1,240 @@
+name: Deploy verified 28-board Page1 Page4 freshness repair with rollback
+on:
+  push:
+    branches: [fix/page1-page4-freshness-20261122]
+    paths:
+      - .github/workflows/deploy-page1-page4-freshness.yml
+permissions:
+  contents: read
+concurrency:
+  group: man-cave-28-production-release
+  cancel-in-progress: false
+jobs:
+  controlled-release:
+    if: github.ref == 'refs/heads/fix/page1-page4-freshness-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Ensure same verified production base and only approved data/receiver changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          old='ac3a73b4efe1e49a993e3213bb19f4a2a29a4365'
+          git merge-base --is-ancestor "$old" HEAD
+          git diff --name-only "$old" HEAD > "$RUNNER_TEMP/changed.txt"
+          cat "$RUNNER_TEMP/changed.txt"
+          python - "$RUNNER_TEMP/changed.txt" <<'PY'
+          from pathlib import Path
+          import sys,json,re
+          allowed={
+            'cloud-28/basketball-site-season-fallback.mjs',
+            'cloud-28/page4-live-api.mjs',
+            'cloud-28/tests/basketball-site-season-fallback.test.mjs',
+            'cloud-28/tv3-remote.js',
+            'cloud-28/build_cloudflare_visual_staging.py',
+            'cloud-28/tests/browser-same-url-receiver.mjs',
+            'cloud-28/tests/browser-page4-migrations.mjs',
+            '.github/workflows/verify-page4-live-site-fallback.yml',
+            '.github/workflows/preview-page4-freshness.yml',
+            '.github/workflows/test-cloudflare-live-relay.yml',
+            '.github/workflows/deploy-page1-page4-freshness.yml'
+          }
+          changed=set(Path(sys.argv[1]).read_text().splitlines())
+          assert changed and not changed-allowed,f'Unexpected changes not permitted: {sorted(changed-allowed)}'
+          config=json.loads(re.sub(r'^\s*//.*$', '',Path('wrangler.jsonc').read_text(),flags=re.M))
+          assert config['name']=='man-cave-28-page'
+          assert config['main']=='./cloud-28/cloudflare-live-proxy.mjs'
+          assert config['assets']['directory']=='./cloud-28/cloudflare-static-dist'
+          assert config['assets']['run_worker_first']==[
+            '/proxy','/migration-api/*','/staging/api/*','/api/board/*','/production/api/*']
+          print('PASS_NARROW_SOURCE_AND_ORIGINAL_CLOUDFLARE_TARGET')
+          PY
+      - name: Confirm production Worker unchanged and preserve current rollback version
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deployments status --config wrangler.jsonc --json > "$RUNNER_TEMP/before.json"
+          python - "$RUNNER_TEMP/before.json" <<'PY'
+          import json,re,sys
+          from pathlib import Path
+          raw=Path(sys.argv[1]).read_text()
+          try:obj=json.loads(raw)
+          except json.JSONDecodeError:
+              p=re.search(r'[\[{]',raw)
+              assert p
+              obj=json.JSONDecoder().raw_decode(raw[p.start():])[0]
+          versions=[(v.get('version_id'),v.get('percentage')) for v in obj.get('versions',[])]
+          expected='711647a7-f63d-4df1-a8f9-455db32d1070'
+          assert versions==[(expected,100)],f'Production changed since baseline: {versions}'
+          print('PASS_PRODUCTION_PRIOR_VERSION_PINNED',expected)
+          PY
+      - name: Build immutable Gold Master with only data and receiver transport changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python cloud-28/prepare.py
+          python cloud-28/build_cloudflare_assets.py
+          python cloud-28/tests/staging_runtime_images.test.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('cloud-28/cloudflare-static-dist')
+          stage=root/'staging'
+          boards=json.loads((stage/'boards.json').read_text())
+          assert len(boards['boards'])==28 and boards['duration_ms']==30000
+          assert len(list((stage/'boards').glob('*.html')))==28
+          html=(stage/'player.html').read_text()
+          remote=(stage/'tv3-remote.js').read_text()
+          assert '/staging/tv3-remote.js?v=stats-refresh-r2' in html
+          assert html.count('/staging/tv3-remote.js')==1
+          assert 'command-refreshed' in remote and 'mcSend=' in remote
+          assert "app.database().ref('screens/third').on('value'" in remote
+          assert 'if(window.top!==window)return;' in remote
+          assert b"target.hostname==='a.espncdn.com'" in (stage/'runtime/runtime_nfl_p1_v7j.js').read_bytes()
+          assert b'node.parentNode||document' in (stage/'runtime/runtime_redsox_p3_v7t.js').read_bytes()
+          print('PASS_SAME_TV_ADDRESS_APPROVED_28_VISUALS_AND_FRESH_SEND')
+          PY
+      - name: Validate strict ESPN Site source and Worker security
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test cloud-28/tests/basketball-site-season-fallback.test.mjs \
+            cloud-28/tests/page4-live.test.mjs cloud-28/tests/worker-proxy.test.mjs \
+            cloud-28/tests/request-budget.test.mjs cloud-28/tests/staging-image-helper.test.mjs
+          npx --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir ./_freshness-dryrun
+      - name: Verify current Worker can still answer live health before changing anything
+        shell: bash
+        run: |
+          python - <<'PY'
+          from urllib.request import Request,urlopen
+          import json
+          url='https://man-cave-28-page.broncos5523.workers.dev/migration-api/health'
+          req=Request(url,headers={'User-Agent':'ManCaveFreshnessCutoverCheck/1.0'})
+          with urlopen(req,timeout=18) as r:
+              assert r.status==200 and json.load(r)['ok']
+          print('PASS_PREDEPLOY_LIVE_WORKER_HEALTH')
+          PY
+      - name: Deploy authorized stats freshness update to EXISTING 28-board Worker
+        id: deployed
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --config wrangler.jsonc --strict --keep-vars \
+            --message "Verified Page4 ESPN Site season stats fallback + refresh same board; Gold Master unchanged"
+      - name: Verify fresh live Page1 and Page4 data at SAME unchanged production address
+        id: verify
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,time
+          from urllib.request import urlopen,Request
+          from datetime import datetime,timezone
+          base='https://man-cave-28-page.broncos5523.workers.dev'
+          # Retain the user's exact saved player URL, plus the new public script.
+          paths=[
+            ('/staging/player.html?rotate=off','player'),
+            ('/staging/tv3-remote.js?v=stats-refresh-r2','receiver'),
+            ('/staging/boards.json','manifest'),
+            ('/migration-api/health','health'),
+          ]
+          for path,kind in paths:
+            for attempt in range(4):
+              try:
+                req=Request(base+path,headers={'User-Agent':'ManCaveFreshnessRelease/1.0','Cache-Control':'no-cache'})
+                with urlopen(req,timeout=25) as r:
+                  assert r.status==200
+                  raw=r.read(1000000)
+                if kind=='player':
+                  assert raw.count(b'/staging/tv3-remote.js?v=stats-refresh-r2')==1
+                  assert b'/staging/player.js' in raw
+                if kind=='receiver':
+                  assert b'command-refreshed' in raw and b'mcSend=' in raw
+                  assert b"screens/third" in raw
+                if kind=='manifest':
+                  d=json.loads(raw)
+                  assert len(d['boards'])==28 and d['duration_ms']==30000
+                if kind=='health':assert json.loads(raw)['ok'] is True
+                print('PASS_PRODUCTION_VISUAL_AND_RECEIVER',kind,path)
+                break
+              except Exception:
+                if attempt==3:raise
+                time.sleep(4)
+          boards=[
+            ('page1_nfl',2026),('page1_nba',2027),('page1_nhl',2027),
+            ('page1_mlb',2026),('page1_wnba',2026),('page1_cfb',2026),('page1_cbb',2027)
+          ]
+          from concurrent.futures import ThreadPoolExecutor
+          def check(item):
+            board,year=item
+            req=Request(base+'/api/board/'+board+'?deployment-check=20261122',
+              headers={'User-Agent':'ManCaveFreshnessRelease/1.0','Cache-Control':'no-cache'})
+            with urlopen(req,timeout=38) as response:
+              assert response.status==200
+              d=json.load(response)
+            assert d.get('dataState')=='current' and d['context']['statsYear']==year,(board,'season contract')
+            assert len(d.get('standings',{}).get('groups',[]))>=2,(board,'standings unavailable')
+            return board,d.get('context',{}).get('label')
+          with ThreadPoolExecutor(max_workers=4) as pool:
+            for board,season in pool.map(check,boards):print('PASS_PRODUCTION_PAGE1',board,season)
+          basketball=[('page4_celtics',2027),('page4_fever',2026),('page4_arizona_cbb',2027)]
+          def check_p4(item):
+            board,season=item
+            url=base+'/production/api/page4-live?board='+board+'&deployment-check=20261122'
+            req=Request(url,headers={'User-Agent':'ManCaveFreshnessRelease/1.0','Cache-Control':'no-cache'})
+            with urlopen(req,timeout=38) as response:
+              assert response.status==200
+              d=json.load(response)
+            assert d.get('dataState')=='current' and d['season']==season
+            assert d['verifiedPlayers']>=3 and len(d['leaders'])==6
+            assert len(d['roster'])>=10
+            updated=datetime.fromisoformat(d['updatedAt'].replace('Z','+00:00'))
+            assert 0<=(datetime.now(timezone.utc)-updated).total_seconds()<900
+            return board,d['verifiedPlayers']
+          with ThreadPoolExecutor(max_workers=3) as pool:
+            for board,count in pool.map(check_p4,basketball):
+              print('PASS_PRODUCTION_PAGE4',board,count)
+          print('PASS_ALL_SEVEN_PAGE1_THREE_BASKETBALL_PAGE4_FRESH')
+          PY
+      - name: Verify newly active Cloudflare version and record rollback
+        if: steps.deployed.outcome == 'success'
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          npx --yes wrangler@4 deployments status --config wrangler.jsonc --json > "$RUNNER_TEMP/after.json"
+          python - "$RUNNER_TEMP/after.json" <<'PY'
+          import json,re,sys
+          from pathlib import Path
+          raw=Path(sys.argv[1]).read_text()
+          try:d=json.loads(raw)
+          except json.JSONDecodeError:
+            p=re.search(r'[\[{]',raw);assert p
+            d=json.JSONDecoder().raw_decode(raw[p.start():])[0]
+          v=[(x.get('version_id'),x.get('percentage')) for x in d.get('versions',[])]
+          assert len(v)==1 and v[0][1]==100 and v[0][0]!='711647a7-f63d-4df1-a8f9-455db32d1070'
+          print('PASS_FRESHNESS_PRODUCTION_VERSION',v[0][0])
+          print('PRIOR_PRODUCTION_ROLLBACK','711647a7-f63d-4df1-a8f9-455db32d1070')
+          PY
+      - name: Auto rollback immediately if live verification fails
+        if: failure() && steps.deployed.outcome == 'success'
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          npx --yes wrangler@4 rollback 711647a7-f63d-4df1-a8f9-455db32d1070 \
+            --config wrangler.jsonc --message "Auto rollback after Man Cave Page4 freshness verification failed"
+          echo "ROLLED_BACK_TO_VERIFIED_PREVIOUS_VERSION_711647a7"
