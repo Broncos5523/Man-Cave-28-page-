@@ -1,0 +1,47 @@
+name: Inspect same-address TV browser cache and receiver compatibility (read-only)
+on:
+  push:
+    branches: [fix/controller-on-original-player-url-20261122]
+    paths:
+      - .github/workflows/audit-receiver-cache.yml
+permissions:
+  contents: read
+jobs:
+  audit:
+    if: github.ref == 'refs/heads/fix/controller-on-original-player-url-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Read-only inspect cache directives on live TV URL (no changes)
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.error
+          base='https://man-cave-28-page.broncos5523.workers.dev'
+          pages=['/staging/player.html?rotate=off',
+                 '/staging/tv3-remote.js?v=same-address-r1',
+                 '/staging/player.js',
+                 '/staging/boards.json']
+          for p in pages:
+            req=urllib.request.Request(base+p,
+              headers={'User-Agent':'Mozilla/5.0 (Linux; Android 10; onn Google TV) AppleWebKit/537.36 Chrome/83.0 Mobile Safari/537.36'})
+            try:
+              with urllib.request.urlopen(req,timeout=18) as res:
+                body=res.read(1000000)
+                h=res.headers
+                print('TV_CACHING',p,{
+                  'status':res.status,'bytes':len(body),
+                  'cache-control':h.get('Cache-Control'),
+                  'etag':h.get('ETag'),
+                  'age':h.get('Age'),
+                  'content-type':h.get('Content-Type'),
+                  'cf-cache-status':h.get('CF-Cache-Status'),
+                  'server':h.get('Server')})
+                if p.startswith('/staging/player.html'):
+                  print('TV_PLAYER_HTML_RECEIVER_PRESENT',
+                    b'/staging/tv3-remote.js?v=same-address-r1' in body)
+                if p.startswith('/staging/tv3-remote.js'):
+                  print('TV_RECEIVER_SDK_HOST_PRESENT',
+                    b'www.gstatic.com/firebasejs/10.14.1' in body)
+            except Exception as exc:
+              print('TV_CACHING_EXCEPTION',p,type(exc).__name__)
+          PY
