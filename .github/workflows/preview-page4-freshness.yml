@@ -1,0 +1,75 @@
+name: Preview Page4 site fallback and same-board fresh resend (no live deployment)
+on:
+  push:
+    branches: [fix/page1-page4-freshness-20261122]
+    paths:
+      - .github/workflows/preview-page4-freshness.yml
+      - cloud-28/basketball-site-season-fallback.mjs
+      - cloud-28/page4-live-api.mjs
+      - cloud-28/tv3-remote.js
+      - cloud-28/tests/browser-same-url-receiver.mjs
+      - cloud-28/tests/browser-page4-migrations.mjs
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/fix/page1-page4-freshness-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify original v8l board sources and build optimized assets
+        run: |
+          python cloud-28/prepare.py
+          python cloud-28/build_cloudflare_assets.py
+          python cloud-28/tests/staging_runtime_images.test.py
+      - name: Test strict player season rows and original Worker contracts
+        run: |
+          node --test cloud-28/tests/basketball-site-season-fallback.test.mjs \
+            cloud-28/tests/page4-live.test.mjs cloud-28/tests/worker-proxy.test.mjs \
+            cloud-28/tests/request-budget.test.mjs
+      - name: Deploy ONLY isolated Cloudflare Preview with current visual assets
+        id: preview
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 preview --config cloud-28/wrangler-quota-preview.jsonc --name freshness --json > "$RUNNER_TEMP/preview.txt"
+          url="$(python - "$RUNNER_TEMP/preview.txt" <<'PY'
+          import re,sys
+          from pathlib import Path
+          data=Path(sys.argv[1]).read_text()
+          hits=re.findall(r'https://freshness-[A-Za-z0-9.-]+\.workers\.dev',data)
+          if not hits:raise SystemExit('Isolated freshness Preview URL missing')
+          print(hits[0])
+          PY
+          )"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "FRESHNESS_ISOLATED_PREVIEW $url"
+      - name: Install Chromium for tested production browser contract
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Verify controller same-board re-send reloads updated source without address change
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: node cloud-28/tests/browser-same-url-receiver.mjs
+      - name: Verify Celtics, Fever, and Arizona live current-year Page4 DOM
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: node cloud-28/tests/browser-page4-migrations.mjs
+      - name: Store proof without publishing any new TV URLs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: strict-freshness-preview-receiver-and-page4
+          retention-days: 14
+          if-no-files-found: ignore
+          path: |
+            same-address-receiver-result.json
+            page4-render-matrix.json
