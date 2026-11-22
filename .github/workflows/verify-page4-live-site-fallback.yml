@@ -37,7 +37,7 @@ jobs:
           j=json.loads((stage/'boards.json').read_text())
           assert len(j['boards'])==28 and j['duration_ms']==30000
           html=(stage/'player.html').read_text()
-          assert '/staging/tv3-remote.js?v=same-address-r1' in html
+          assert '/staging/tv3-remote.js?v=stats-refresh-r2' in html
           print('PASS_UNCHANGED_GOLD_MASTER_28_AND_EXISTING_PLAYER_URL')
           PY
       - name: Strict Cloudflare production bundle DRY RUN, no release
