@@ -4,6 +4,7 @@ on:
     branches: [audit/remaining-page4-native-20261122]
     paths:
       - .github/workflows/native-page4-followup.yml
+      - cloud-28/tests/broncos-page4-failure-classification.mjs
 permissions:
   contents: read
 jobs:
@@ -19,6 +20,8 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Identify current Broncos athlete source failures without Firebase writes
         run: node cloud-28/tests/broncos-page4-source-audit.mjs
+      - name: Classify unavailable Broncos season rows against official ESPN sources
+        run: node cloud-28/tests/broncos-page4-failure-classification.mjs
       - name: Compare NHL MLB and NCAA football visible native player stats to ESPN/NHL/MLB sources
         run: node cloud-28/tests/browser-native-page4.mjs
       - name: Preserve comparison evidence
@@ -30,5 +33,6 @@ jobs:
           if-no-files-found: ignore
           path: |
             broncos-page4-source-state.json
+            broncos-page4-failure-classification.json
             native-page4-matrix.json
             *-native.png
