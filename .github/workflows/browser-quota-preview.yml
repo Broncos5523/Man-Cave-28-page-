@@ -1,0 +1,37 @@
+name: Verify actual quota-fix Preview rotation (read-only)
+on:
+  push:
+    branches: [fix/cloudflare-request-budget-20261119]
+    paths:
+      - .github/workflows/browser-quota-preview.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-preview:
+    if: github.ref == 'refs/heads/fix/cloudflare-request-budget-20261119'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Chromium for one read-only Preview check
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Verify real Preview rotation and prevent no-op Worker requests
+        run: node cloud-28/tests/browser-quota-preview.mjs
+      - name: Save bounded diagnostic results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quota-preview-browser-diagnostics
+          path: |
+            quota-preview-browser.json
+            quota-preview-first-rotation.png
+          if-no-files-found: ignore
+          retention-days: 3
