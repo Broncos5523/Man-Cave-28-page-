@@ -34,7 +34,7 @@ test('all cloned runtimes preserve the original outside of exact image routing h
        const prior="  function proxyImages(root=document) {\n    $$('img[src]',root).forEach(img=>{";
        assert.ok(clone.includes(safe),'Red Sox P3 guard must exist exactly in staging');
        assert.ok(!original.includes(safe),'Approved original Red Sox must remain unchanged');
-       reverted=reverted.replace(safe,prior);
+       reverted=reverted.replace(safe,()=>prior);
      }
      if(reverted!==original){
        let diff=0;
