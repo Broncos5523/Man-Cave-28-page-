@@ -1,0 +1,34 @@
+name: Read-only final source check of native Page4 Bruins Red Sox Arizona FB Broncos
+on:
+  push:
+    branches: [audit/remaining-page4-native-20261122]
+    paths:
+      - .github/workflows/native-page4-followup.yml
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.ref == 'refs/heads/audit/remaining-page4-native-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Chromium
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Identify current Broncos athlete source failures without Firebase writes
+        run: node cloud-28/tests/broncos-page4-source-audit.mjs
+      - name: Compare NHL MLB and NCAA football visible native player stats to ESPN/NHL/MLB sources
+        run: node cloud-28/tests/browser-native-page4.mjs
+      - name: Preserve comparison evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: remaining-native-page4-readonly-evidence
+          retention-days: 10
+          if-no-files-found: ignore
+          path: |
+            broncos-page4-source-state.json
+            native-page4-matrix.json
+            *-native.png
