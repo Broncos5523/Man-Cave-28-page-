@@ -93,9 +93,9 @@
       url=new URL(origin);
     }catch{return null;}
     if(url.protocol!=='https:'||url.hostname!=='sports.core.api.espn.com'||url.username||url.password||url.port)return null;
-    const path=url.pathname.replace(/\\/$/,'');
-    const normal=/^\\/v2\\/sports\\/(?:basketball\\/leagues\\/(?:nba|wnba|mens-college-basketball)|football\\/leagues\\/college-football)\\/seasons\\/20\\d{2}\\/types\\/2\\/(?:teams\\/\\d+\\/(?:statistics|leaders)|athletes\\/\\d+\\/statistics(?:\\/0)?)$/.test(path);
-    const identity=/^\\/v2\\/sports\\/football\\/leagues\\/college-football\\/seasons\\/20\\d{2}\\/athletes\\/\\d+$/.test(path);
+    const path=url.pathname.replace(/\/$/,'');
+    const normal=/^\/v2\/sports\/(?:basketball\/leagues\/(?:nba|wnba|mens-college-basketball)|football\/leagues\/college-football)\/seasons\/20\d{2}\/types\/2\/(?:teams\/\d+\/(?:statistics|leaders)|athletes\/\d+\/statistics(?:\/0)?)$/.test(path);
+    const identity=/^\/v2\/sports\/football\/leagues\/college-football\/seasons\/20\d{2}\/athletes\/\d+$/.test(path);
     if(!normal&&!identity)return null;
     const fallback='/proxy?url='+encodeURIComponent(url.href);
     const headers=new Headers(init?.headers||input?.headers||{});
