@@ -74,8 +74,49 @@
     pending.set(key,task);return task.then(r=>r.clone());
   }
 
+  // Fetch official current-season ESPN Core data from the TV/browser first.
+  // ESPN permits cross-origin browser GETs (verified on 2026-11-22), while
+  // blocking Cloudflare Worker egress with HTTP 403. Restrict to the exact
+  // public regular-season and Arizona identity contracts used by v8l boards.
+  // This avoids dependence on GitHub's irregular 5-minute cron publication.
+  const directStats={success:0,fallback:0};
+  window.__MC_DIRECT_ESPN_STATS__=directStats;
+  function directEspnCore(raw,init,input){
+    if(!raw||board[1]==='page4_broncos')return null;
+    const method=String(init?.method||input?.method||'GET').toUpperCase();
+    if(method!=='GET')return null;
+    let url;
+    try{
+      const origin=raw.startsWith('/proxy?')
+        ?new URL(raw,'https://man-cave-local.invalid').searchParams.get('url')
+        :raw;
+      url=new URL(origin);
+    }catch{return null;}
+    if(url.protocol!=='https:'||url.hostname!=='sports.core.api.espn.com'||url.username||url.password||url.port)return null;
+    const path=url.pathname.replace(/\\/$/,'');
+    const normal=/^\\/v2\\/sports\\/(?:basketball\\/leagues\\/(?:nba|wnba|mens-college-basketball)|football\\/leagues\\/college-football)\\/seasons\\/20\\d{2}\\/types\\/2\\/(?:teams\\/\\d+\\/(?:statistics|leaders)|athletes\\/\\d+\\/statistics(?:\\/0)?)$/.test(path);
+    const identity=/^\\/v2\\/sports\\/football\\/leagues\\/college-football\\/seasons\\/20\\d{2}\\/athletes\\/\\d+$/.test(path);
+    if(!normal&&!identity)return null;
+    const fallback='/proxy?url='+encodeURIComponent(url.href);
+    const headers=new Headers(init?.headers||input?.headers||{});
+    if(headers.has('Authorization')||headers.has('Cookie')||headers.has('X-API-Key')||
+       init?.credentials==='include'||input?.credentials==='include')
+      return cachedPublic(fallback,init,input);
+    // No private headers or credentials may be forwarded to ESPN.
+    return native(url.href,{method:'GET',mode:'cors',credentials:'omit',cache:'no-cache',
+      signal:init?.signal||input?.signal}).then(response=>{
+      if(response.ok){directStats.success++;return response;}
+      directStats.fallback++;
+      return cachedPublic(fallback,init,input);
+    }).catch(()=>{
+      directStats.fallback++;
+      return cachedPublic(fallback,init,input);
+    });
+  }
   window.fetch=function(input,init){
     const raw=typeof input==='string'?input:(input&&typeof input.url==='string'?input.url:'');
+    const direct=directEspnCore(raw,init,input);
+    if(direct)return direct;
     // The approved Gold Master calls proxied() BEFORE fetch(), producing
     // /proxy?url=<encoded ESPN Core URL>. Intercept that actual request shape
     // as well as direct HTTPS; otherwise the Worker returns a Core 403.
