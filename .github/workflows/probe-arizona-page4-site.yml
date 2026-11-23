@@ -2,8 +2,7 @@ name: Probe ESPN Site alternative for Arizona Page4 live seasonal leaders
 on:
   push:
     branches: [audit/remaining-page4-native-20261122]
-    paths:
-      - .github/workflows/probe-arizona-page4-site.yml
+    paths: [.github/workflows/probe-arizona-page4-site.yml]
 permissions:
   contents: read
 jobs:
@@ -11,41 +10,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
-      - name: Examine public current-season Arizona Site contracts (read-only)
+      - name: Check whether athlete leaderboard supports server-side Arizona team filter
         shell: bash
         run: |
           node --input-type=module <<'JS'
-          const root='https://site.api.espn.com/apis';
-          const paths=[
-            '/site/v2/sports/football/college-football/teams/12/leaders?season=2026&seasontype=2',
-            '/site/v3/sports/football/college-football/teams/12/leaders?season=2026&seasontype=2',
-            '/site/v2/sports/football/college-football/teams/12/statistics?season=2026&seasontype=2',
-            '/site/v2/sports/football/college-football/teams/12?season=2026',
-            '/site/v2/sports/football/college-football/teams/12/roster?season=2026',
-            '/site/v3/sports/football/college-football/leaders?season=2026&seasontype=2&groups=80',
-            '/common/v3/sports/football/college-football/athletes/4801717/stats?season=2026&seasontype=2',
-            '/common/v3/sports/football/college-football/statistics/byathlete?season=2026&seasontype=2&groups=80&team=12&limit=8&sort=passing.passingYards:desc'
-          ];
-          const results=[];
-          for (const path of paths){
-            try{
-              const resp=await fetch(root+path,{signal:AbortSignal.timeout(11000),headers:{Accept:'application/json','User-Agent':'ManCaveReadOnlySiteProbe/1.0'}});
-              let data={};try{data=await resp.json()}catch{}
-              const summary={path,status:resp.status,keys:Object.keys(data).slice(0,20),
-                season:data?.season,requestedSeason:data?.requestedSeason,
-                categories:(data?.categories||[]).slice(0,8).map(c=>({
-                  name:c.name,keys:Object.keys(c),leaders:(c.leaders||[]).slice(0,2).map(x=>({
-                    value:x.value,athleteId:x.athlete?.id,athleteName:x.athlete?.displayName,
-                    athleteRef:x.athlete?.$ref,teamId:x.team?.id
-                  })),stats:(c.stats||[]).slice(0,2).map(x=>({name:x.name,value:x.value}))
-                })),
-                leaders:Array.isArray(data?.leaders)?data.leaders.slice(0,8).map(c=>({name:c.name,keys:Object.keys(c),leaders:(c.leaders||[]).slice(0,2).map(x=>({value:x.value,athlete:x.athlete?.displayName,id:x.athlete?.id}))})):Object.entries(data?.leaders||{}).slice(0,8).map(([k,v])=>({key:k,type:Array.isArray(v)?'array':typeof v,keys:v&&typeof v==='object'?Object.keys(v).slice(0,10):[]})),
-                athletes:(data?.athletes||[]).slice(0,3).map(x=>({keys:Object.keys(x).slice(0,12),athlete:x.athlete?.displayName,teamId:x.team?.id})),
-                results:(data?.results||{}).stats?{statsKeys:Object.keys(data.results.stats),categories:(data.results.stats.categories||[]).slice(0,8).map(c=>({name:c.name,names:c.stats?.slice(0,3).map(x=>x.name)}))}:undefined,
-                team:data?.team?{id:data.team.id,name:data.team.displayName}:undefined
-              };
-              results.push(summary);console.log('SITE_CFB_PROBE',JSON.stringify(summary).slice(0,9000));
-            }catch(e){console.log('SITE_CFB_PROBE_ERROR',JSON.stringify({path,error:String(e)}));}
+          const root='https://site.api.espn.com/apis/common/v3/sports/football/college-football/statistics/byathlete?season=2026&seasontype=2&groups=80&limit=8&sort=passing.passingYards:desc';
+          const options=['team=12','teamId=12','teams=12','team.id=12','teamid=12','team=Arizona'];
+          for(const param of options){
+            try {
+              const resp=await fetch(root+'&'+param,{signal:AbortSignal.timeout(13000),headers:{Accept:'application/json'}});
+              const d=await resp.json();
+              const athletes=(d.athletes||[]).slice(0,5).map(x=>({name:x.athlete?.displayName,
+                teamId:x.athlete?.team?.id||x.athlete?.teamId||x.team?.id,
+                athleteKeys:Object.keys(x.athlete||{}).slice(0,12),categoryNames:x.categories?.map(c=>c.name).slice(0,3)}));
+              console.log('TEAM_FILTER_PROBE',JSON.stringify({param,status:resp.status,rows:d.athletes?.length,
+                requestedSeason:d.requestedSeason?.year,athletes}));
+            }catch(e){console.log('TEAM_FILTER_PROBE_ERROR',JSON.stringify({param,error:String(e)}));}
           }
-          console.log('SITE_CFB_PROBE_SUMMARY',JSON.stringify(results.map(r=>({path:r.path,status:r.status,keys:r.keys}))));
           JS
