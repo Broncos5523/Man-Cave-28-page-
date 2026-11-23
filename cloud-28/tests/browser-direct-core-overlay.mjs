@@ -15,7 +15,7 @@ try{
       const url=r.url();
       if(url.includes('sports.core.api.espn.com')||
         url.includes('/proxy?url=')&&decodeURIComponent(url).includes('sports.core.api.espn.com'))
-        requests.push({status:r.status(),url:url.slice(0,230)});
+        requests.push({status:r.status(),url:url.slice(0,230),frame:(()=>{try{return r.request().frame().url().slice(0,160)}catch{return 'unknown'}})()});
     });
     page.on('pageerror',e=>errors.push(String(e).slice(0,270)));
     let outer={};
@@ -26,8 +26,10 @@ try{
         text:(document.body?.innerText||'').slice(0,650),
         direct:window.__MC_DIRECT_ESPN_STATS__,
         ready:window.MCBoard?.ready,
-        seasonStatus:window.__MC_PAGE4_LIVE_STATUS__||null
+        seasonStatus:window.__MC_PAGE4_LIVE_STATUS__||null,
+        iframes:[...document.querySelectorAll('iframe')].map(f=>({src:f.src.slice(0,150)}))
       }));
+      outer.frames=await Promise.all(page.frames().map(async frame=>({url:frame.url().slice(0,190),data:await frame.evaluate(()=>({direct:window.__MC_DIRECT_ESPN_STATS__||null,shim:window.__MC_CLOUDFLARE_PUBLIC_FEED_RELAY__||null,ready:window.MCBoard?.ready||null})).catch(e=>({error:String(e)}))})));
       results.push({board:id,status:nav?.status(),...outer,requests:requests.slice(-35),errors:errors.slice(-6)});
     }catch(e){results.push({board:id,error:String(e),requests:requests.slice(-30),errors});}
     console.log('DIRECT_CORE_INTEGRATION',JSON.stringify(results.at(-1)).slice(0,12000));
