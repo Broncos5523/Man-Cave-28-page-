@@ -230,6 +230,10 @@ def main():
                 b'<script src="/staging/board-standalone-host.js?v=standalone-r1"></script>'
                 b'<script src="/staging/espn-fetch-shim.js?v=direct-core-r1"></script>'
             )
+            # Read-only Arizona next-game label correction on two Page1s.
+            # Existing CSS, visual DOM classes and all other 26 boards stay intact.
+            if bid in ('page1_cfb','page1_cbb'):
+                scripts+=b'<script defer src="/staging/favorite-next-live.js?v=arizona-next-r1"></script>'
             if b'/staging/espn-fetch-shim.js' in response:
                 raise RuntimeError("Duplicate Cloudflare preview shim: "+bid)
             response=response[:match.end()]+scripts+response[match.end():]
@@ -241,6 +245,7 @@ def main():
         save_binary(OUT/"production"/"spotlight-state.js",(approved.APP/"production"/"spotlight-state.js").read_bytes())
         save_binary(STAGE/"board-standalone-host.js",(HERE/"cloudflare-standalone-board-host.js").read_bytes())
         save_binary(STAGE/"espn-fetch-shim.js",(HERE/"cloudflare-public-feed-shim.js").read_bytes())
+        save_binary(STAGE/"favorite-next-live.js",(HERE/"favorite-next-live.js").read_bytes())
         # Export the approved production player into a separate staging URL.
         # Only transport URLs are rewritten, not timing, animation, page order,
         # scoring/stat logic, spotlight state, or the Onn orientation fit.
