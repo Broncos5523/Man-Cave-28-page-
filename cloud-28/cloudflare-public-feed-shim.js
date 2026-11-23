@@ -5,7 +5,8 @@
 (function(){
   'use strict';
   // Cloudflare static-assets canonicalization redirects *.html to extensionless URLs.
-  const board=/^\/staging\/boards\/([a-z0-9_]+)(?:\.html)?\/?$/.exec(location.pathname);
+  const board=/^\/staging\/boards\/([a-z0-9_]+)(?:\.html)?\/?$/.exec(location.pathname)||
+    /^\/hosted\/(page4_arizona_cfb)\/(?:index\.html)?$/.exec(location.pathname);
   if(!board)return;
   const allow=new Set([
     'site.api.espn.com','sports.core.api.espn.com','site.web.api.espn.com',
@@ -79,7 +80,7 @@
   // blocking Cloudflare Worker egress with HTTP 403. Restrict to the exact
   // public regular-season and Arizona identity contracts used by v8l boards.
   // This avoids dependence on GitHub's irregular 5-minute cron publication.
-  const directStats={success:0,fallback:0};
+  const directStats={success:0,fallback:0,xhr:0};
   window.__MC_DIRECT_ESPN_STATS__=directStats;
   function directEspnCore(raw,init,input){
     if(!raw||board[1]==='page4_broncos')return null;
@@ -112,6 +113,29 @@
       directStats.fallback++;
       return cachedPublic(fallback,init,input);
     });
+  }
+  // Some locked v8l boards use XMLHttpRequest rather than fetch().
+  // Keep their original request, response and DOM handlers intact; change
+  // only the approved public Core URL before the browser opens the request.
+  if(typeof XMLHttpRequest!=='undefined'&&XMLHttpRequest.prototype?.open){
+    const oldOpen=XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open=function(method,raw,...args){
+      if(board[1]!=='page4_broncos'&&String(method).toUpperCase()==='GET'&&typeof raw==='string'){
+        try{
+          const origin=raw.startsWith('/proxy?')
+            ?new URL(raw,'https://man-cave-local.invalid').searchParams.get('url')
+            :raw;
+          const u=new URL(origin);
+          const p=u.pathname.replace(/\/$/,'');
+          const standard=/^\/v2\/sports\/(?:basketball\/leagues\/(?:nba|wnba|mens-college-basketball)|football\/leagues\/college-football)\/seasons\/20\d{2}\/types\/2\/(?:teams\/\d+\/(?:statistics|leaders)|athletes\/\d+\/statistics(?:\/0)?)$/.test(p);
+          const identity=/^\/v2\/sports\/football\/leagues\/college-football\/seasons\/20\d{2}\/athletes\/\d+$/.test(p);
+          if(u.protocol==='https:'&&u.hostname==='sports.core.api.espn.com'&&!u.username&&!u.password&&!u.port&&(standard||identity)){
+            directStats.xhr++;return oldOpen.call(this,method,u.href,...args);
+          }
+        }catch(e){/* Unrelated requests keep their original transport. */}
+      }
+      return oldOpen.call(this,method,raw,...args);
+    };
   }
   window.fetch=function(input,init){
     const raw=typeof input==='string'?input:(input&&typeof input.url==='string'?input.url:'');
