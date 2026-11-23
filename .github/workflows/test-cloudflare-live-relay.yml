@@ -35,7 +35,7 @@ jobs:
           assert len(board_files)==28,len(board_files)
           for p in board_files:
               content=p.read_bytes()
-              assert content.count(b'/staging/espn-fetch-shim.js?v=public-cache-r1')==1,p
+              assert content.count(b'/staging/espn-fetch-shim.js?v=direct-core-r1')==1,p
               assert content.count(b'/staging/board-standalone-host.js?v=standalone-r1')==1,p
               assert content.count(b'/production/spotlight-state.js')==1,p
               assert b"data:image/" not in content.lower(),p
