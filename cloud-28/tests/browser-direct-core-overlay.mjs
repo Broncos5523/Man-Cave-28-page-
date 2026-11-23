@@ -11,11 +11,22 @@ try{
     await ctx.route('**/staging/espn-fetch-shim.js?*',route=>route.fulfill({
       status:200,contentType:'application/javascript',body:shim
     }));
+    // Emulate the new child-iframe transport insertion without touching production.
+    await ctx.route('**/hosted/page4_arizona_cfb/?*',async route=>{
+      const response=await route.fetch();
+      let body=await response.text();
+      const head=/<head\\b[^>]*>/i.exec(body);
+      if(head&&!body.includes('direct-core-r1'))
+        body=body.slice(0,head.index+head[0].length)+
+          '<script src="/staging/espn-fetch-shim.js?v=direct-core-r1"></script>'+
+          body.slice(head.index+head[0].length);
+      await route.fulfill({response,body});
+    });
     page.on('response',r=>{
       const url=r.url();
       if(url.includes('sports.core.api.espn.com')||
         url.includes('/proxy?url=')&&decodeURIComponent(url).includes('sports.core.api.espn.com'))
-        requests.push({status:r.status(),url:url.slice(0,230),frame:(()=>{try{return r.request().frame().url().slice(0,160)}catch{return 'unknown'}})()});
+        requests.push({status:r.status(),url:url.slice(0,230),frame:(()=>{try{return r.request().frame().url().slice(0,160)}catch{return 'unknown'}})(),kind:r.request().resourceType()});
     });
     page.on('pageerror',e=>errors.push(String(e).slice(0,270)));
     let outer={};
