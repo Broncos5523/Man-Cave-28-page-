@@ -4,6 +4,7 @@ on:
     branches: [audit/tv-page1-page4-physical-mismatch-20261122]
     paths:
       - cloud-28/tests/audit-actual-page1-page4.mjs
+      - cloud-28/tests/probe-live-stale-caption-dom.mjs
       - .github/workflows/audit-actual-page1-page4.yml
 permissions:
   contents: read
@@ -18,4 +19,4 @@ jobs:
           npm install --no-save playwright
           npx playwright install --with-deps chromium
       - name: Inspect all seven Page1 and seven Page4 visible DOM and source failures
-        run: node cloud-28/tests/audit-actual-page1-page4.mjs
+        run: node cloud-28/tests/probe-live-stale-caption-dom.mjs
