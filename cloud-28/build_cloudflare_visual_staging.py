@@ -147,7 +147,8 @@ def main():
                 head=re.search(rb'<head\b[^>]*>',data,re.I)
                 if not head:
                     raise RuntimeError('Arizona nested app lacks expected head anchor')
-                bridge=(b'<script>window.__MC_PRODUCTION_BOARD="page4_arizona_cfb";</script>'
+                bridge=(b'<script src="/staging/espn-fetch-shim.js?v=direct-core-r1"></script>'
+                        b'<script>window.__MC_PRODUCTION_BOARD="page4_arizona_cfb";</script>'
                         b'<script src="/staging/board-runtime-ancestor.js"></script>')
                 data=data[:head.end()]+bridge+data[head.end():]
             if rel.endswith('index-BpJce90E.js'):
@@ -227,7 +228,7 @@ def main():
             scripts=(
                 b'<script src="/production/spotlight-state.js"></script>'
                 b'<script src="/staging/board-standalone-host.js?v=standalone-r1"></script>'
-                b'<script src="/staging/espn-fetch-shim.js?v=public-cache-r1"></script>'
+                b'<script src="/staging/espn-fetch-shim.js?v=direct-core-r1"></script>'
             )
             if b'/staging/espn-fetch-shim.js' in response:
                 raise RuntimeError("Duplicate Cloudflare preview shim: "+bid)
