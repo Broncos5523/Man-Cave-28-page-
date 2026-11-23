@@ -3,6 +3,7 @@ on:
   push:
     branches: [fix/page1-arizona-live-next-20261122]
     paths:
+      - cloud-28/cloudflare-live-proxy.mjs
       - cloud-28/favorite-next-live.js
       - cloud-28/build_cloudflare_visual_staging.py
       - cloud-28/tests/browser-favorite-next-live.mjs
@@ -12,13 +13,14 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 9
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Validate selective scripts preserve approved original boards
         shell: bash
         run: |
           node --check cloud-28/favorite-next-live.js
+          node --check cloud-28/cloudflare-live-proxy.mjs
           python cloud-28/prepare.py
           python cloud-28/build_cloudflare_assets.py
           python - <<'PY'
@@ -43,3 +45,34 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Test actual Arizona schedule and original page DOM without production deployment
         run: node cloud-28/tests/browser-favorite-next-live.mjs
+      - name: Check reduced CFB Worker fanout against a real local Worker invocation
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save wrangler@4
+          npx wrangler@4 dev --local --ip 127.0.0.1 --port 8787 --log-level error > "$RUNNER_TEMP/local-worker.log" 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          python - <<'PY'
+          import time,json,urllib.request,urllib.error
+          host='http://127.0.0.1:8787'
+          for i in range(35):
+            try:
+              with urllib.request.urlopen(host+'/migration-api/health',timeout=4) as r:
+                assert json.load(r)['ok'] is True
+              break
+            except Exception:time.sleep(2)
+          else:raise RuntimeError('Local Worker never started')
+          for board in ('page1_cfb','page1_cbb'):
+            url=host+'/api/board/'+board
+            try:
+              with urllib.request.urlopen(url,timeout=125) as r:
+                body=json.load(r)
+              print('LOCAL_PAGE1_STATUS',board,body.get('dataState'),
+                    body.get('context',{}).get('year'),
+                    len(body.get('ticker',{}).get('selected',[])),flush=True)
+              assert body['board']==board and body['dataState']=='current'
+            except urllib.error.HTTPError as error:
+              print('LOCAL_PAGE1_FAILURE',board,error.code,error.read(700).decode(errors='replace'))
+              raise
+          PY
