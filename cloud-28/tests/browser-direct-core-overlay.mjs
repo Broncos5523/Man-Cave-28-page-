@@ -14,7 +14,7 @@ try{
     let hostedIntercepts=0;
     await ctx.route('**/*',async route=>{
       const request=route.request(),url=new URL(request.url());
-      if(request.resourceType()==='document'&&url.pathname==='/hosted/page4_arizona_cfb/'){
+      if(request.resourceType()==='document'&&url.pathname.startsWith('/hosted/page4_arizona_cfb/')){
         const response=await route.fetch();
         let body=await response.text();
         const head=/<head\\b[^>]*>/i.exec(body);
@@ -60,9 +60,11 @@ try{
     if(out.status!==200)throw Error('Board HTML unavailable '+id);
     const totalDirect=out.frames?.reduce((n,f)=>n+(f.data?.direct?.success||0),0)||0;
     if(totalDirect===0)errors.push('Direct ESPN Core shim not exercised on '+id);
+    if(id==='page4_arizona_cfb'&&hostedIntercepts===0)errors.push('Hosted Arizona document interception was not exercised');
     if(id==='page4_arizona_cfb'&&
        !out.frames?.some(f=>f.url.includes('/hosted/page4_arizona_cfb/')&&f.data?.direct?.success>0))
       errors.push('Nested Arizona Core stats still bypass direct transport');
+    out.errors=errors;
     await ctx.close();
   }
 }finally{await browser.close();}
