@@ -17,7 +17,7 @@ try{
       if(request.resourceType()==='document'&&url.pathname.startsWith('/hosted/page4_arizona_cfb/')){
         const response=await route.fetch();
         let body=await response.text();
-        const head=/<head\\b[^>]*>/i.exec(body);
+        const head=/<head\b[^>]*>/i.exec(body);
         if(!head)throw Error('Arizona nested document lacks head');
         body=body.slice(0,head.index+head[0].length)+
           '<script src="/staging/espn-fetch-shim.js?v=direct-core-r1"></script>'+
