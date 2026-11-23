@@ -1,0 +1,38 @@
+name: Read-only direct browser ESPN Core connectivity for Arizona Page4
+on:
+  push:
+    branches: [audit/remaining-page4-native-20261122]
+    paths: [.github/workflows/probe-browser-core-direct.yml]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install browser
+        run: |
+          npm install --no-save playwright
+          npx playwright install chromium
+      - name: Test same-origin TV browser ESPN Core fetch with no controller writes
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import {chromium} from 'playwright';
+          const host='https://man-cave-28-page.broncos5523.workers.dev';
+          const target='https://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/teams/12/leaders?lang=en&region=us';
+          const chrome=await chromium.launch();
+          const page=await chrome.newPage({viewport:{width:720,height:1280}});
+          const errors=[];
+          page.on('console',m=>{if(m.type()==='error')errors.push(m.text().slice(0,200))});
+          await page.goto(host+'/staging/boards/page1_cfb',{waitUntil:'domcontentloaded',timeout:40000});
+          const browser=await page.evaluate(async url=>{
+            try{const response=await fetch(url,{mode:'cors',cache:'no-store',signal:AbortSignal.timeout(16000)});
+              const data=await response.json().catch(()=>({}));return {
+                status:response.status,cors:'passed',categories:(data.categories||[]).map(x=>x.name).slice(0,10),keys:Object.keys(data).slice(0,8)
+              };}catch(e){return {cors:'failed',reason:String(e)}}
+          },target);
+          console.log('DIRECT_BROWSER_ESPN_CORE',JSON.stringify({result:browser,consoleErrors:errors.slice(0,6)}));
+          await chrome.close();
+          JS
