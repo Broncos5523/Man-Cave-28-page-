@@ -21,18 +21,24 @@ jobs:
           node --input-type=module <<'JS'
           import {chromium} from 'playwright';
           const host='https://man-cave-28-page.broncos5523.workers.dev';
-          const target='https://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/teams/12/leaders?lang=en&region=us';
+          const targets=[
+            'https://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/teams/12/leaders?lang=en&region=us',
+            'https://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/athletes/4801717?lang=en&region=us',
+            'https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba/seasons/2027/types/2/teams/2/statistics',
+            'https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba/seasons/2027/types/2/athletes/4065648/statistics/0?lang=en&region=us',
+            'https://sports.core.api.espn.com/v2/sports/basketball/leagues/wnba/seasons/2026/types/2/teams/5/statistics'
+          ];
           const chrome=await chromium.launch();
           const page=await chrome.newPage({viewport:{width:720,height:1280}});
           const errors=[];
           page.on('console',m=>{if(m.type()==='error')errors.push(m.text().slice(0,200))});
           await page.goto(host+'/staging/',{waitUntil:'domcontentloaded',timeout:40000});
-          const browser=await page.evaluate(async url=>{
+          const results=[];for(const target of targets){const browser=await page.evaluate(async url=>{
             try{const response=await fetch(url,{mode:'cors',cache:'no-store',signal:AbortSignal.timeout(16000)});
               const data=await response.json().catch(()=>({}));return {
                 status:response.status,cors:'passed',categories:(data.categories||[]).map(x=>x.name).slice(0,10),keys:Object.keys(data).slice(0,8)
               };}catch(e){return {cors:'failed',reason:String(e)}}
-          },target);
-          console.log('DIRECT_BROWSER_ESPN_CORE',JSON.stringify({result:browser,consoleErrors:errors.slice(0,6)}));
+          },target);results.push({type:new URL(target).pathname,result:browser});}
+          console.log('DIRECT_BROWSER_ESPN_CORE_MATRIX',JSON.stringify({results,consoleErrors:errors.slice(0,8)}));
           await chrome.close();
           JS
