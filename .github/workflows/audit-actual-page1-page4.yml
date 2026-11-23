@@ -1,0 +1,21 @@
+name: Diagnose ACTUAL live Page1 and Page4 TV boards without deployment
+on:
+  push:
+    branches: [audit/tv-page1-page4-physical-mismatch-20261122]
+    paths:
+      - cloud-28/tests/audit-actual-page1-page4.mjs
+      - .github/workflows/audit-actual-page1-page4.yml
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install browser
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Inspect all seven Page1 and seven Page4 visible DOM and source failures
+        run: node cloud-28/tests/audit-actual-page1-page4.mjs
