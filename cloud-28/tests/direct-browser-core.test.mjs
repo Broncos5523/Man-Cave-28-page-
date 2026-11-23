@@ -54,6 +54,6 @@ test('Unapproved methods and destinations do not fetch untrusted absolute host d
   const {win,calls}=mount('page4_arizona_cfb',async()=>new Response('{}',{status:200,headers:{'Content-Type':'application/json'}}));
   const evil='https://sports.core.api.espn.com.evil.example/v2/sports/football/leagues/college-football/seasons/2026/types/2/teams/12/leaders';
   await win.fetch(evil);assert.equal(calls[0].url,evil);
-  await win.fetch(core,{method:'POST'});assert.equal(calls[1].url,core);
+  await win.fetch(core,{method:'POST'});assert.ok(calls[1].url.startsWith('/proxy?url='));
   assert.equal(win.__MC_DIRECT_ESPN_STATS__.success,0);
 });
