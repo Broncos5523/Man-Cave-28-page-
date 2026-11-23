@@ -202,6 +202,23 @@ async function publicJson(url,ctx,cap){
   return response.json();
 }
 async function gameWindow(path,scoreboard,year,ctx,now=new Date()){
+  // College football's current-week ESPN scoreboard already covers the week's
+  // game slate. Ten additional full 1000-game daily requests can exhaust the
+  // Worker invocation; the affected Page1 then throws HTTP 500 and leaves
+  // stale rankings on the TV. Read only the upcoming Saturday as a supplement.
+  // If that optional day is unavailable, retain the verified primary week.
+  if(path==='football/college-football'){
+    const saturday=new Date(now.getTime()+((6-now.getUTCDay()+7)%7)*86400000)
+      .toISOString().slice(0,10).replaceAll('-','');
+    let supplement={events:[]};
+    try{
+      supplement=await publicJson('https://site.api.espn.com/apis/site/v2/sports/'+path+
+        '/scoreboard?dates='+saturday+'&limit=250&groups=80',ctx,8*1024*1024);
+    }catch{/* The primary live scoreboard remains authoritative. */}
+    const events=[scoreboard,supplement].flatMap(d=>(d.events||[]).map(normalizeEvent))
+      .filter(e=>e&&Number(e.season?.year)===year);
+    return tickerFromEvents(events,now);
+  }
   const requests=Array.from({length:10},(_,i)=>{
     const date=new Date(now.getTime()+(i-2)*86400000).toISOString().slice(0,10).replaceAll('-','');
     const groups=path.includes('mens-college')?'&groups=50':path.includes('college-football')?'&groups=80':'';
