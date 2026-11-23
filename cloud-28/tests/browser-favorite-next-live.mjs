@@ -32,7 +32,12 @@ try{
     assert.ok(state.status?.selectedEvent&&state.status?.selectedDate,'Only real official event data is permitted');
     assert.equal(state.ready,true);
     assert.deepEqual(errors,[]);
-    results.push({board:cfg.id,pass:true,event:state.status.selectedEvent,text:state.text,requests,errors});
+    const api=await page.evaluate(async id=>{
+      try{const r=await fetch('/api/board/'+id+'?diag='+Date.now(),{cache:'no-store'});
+        const raw=await r.text();return {status:r.status,body:raw.slice(0,450)};}
+      catch(error){return {error:String(error)}}
+    },cfg.id);
+    results.push({board:cfg.id,pass:true,event:state.status.selectedEvent,text:state.text,requests,api,errors});
    }catch(error){results.push({board:cfg.id,pass:false,error:String(error),errors,requests});}
    console.log('ARIZONA_FAVORITE_NEXT_PREVIEW',JSON.stringify(results.at(-1)));
    await ctx.close();
