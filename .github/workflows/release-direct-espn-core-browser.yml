@@ -1,0 +1,194 @@
+name: Deploy verified direct ESPN Core browser fix to existing 28-board URL
+on:
+  push:
+    branches: [fix/direct-espn-core-browser-20261122]
+    paths: [.github/workflows/release-direct-espn-core-browser.yml]
+permissions:
+  contents: read
+concurrency:
+  group: man-cave-28-production-release
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.ref == 'refs/heads/fix/direct-espn-core-browser-20261122'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Require only scoped public feed transport and test changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor afa45f3fc082f85a566032a91ecb16c926ab4785 HEAD
+          git diff --name-only afa45f3fc082f85a566032a91ecb16c926ab4785 HEAD > "$RUNNER_TEMP/source-changed.txt"
+          python - "$RUNNER_TEMP/source-changed.txt" <<'PY'
+          from pathlib import Path
+          import sys,json,re
+          actual=set(Path(sys.argv[1]).read_text().splitlines())
+          allowed={
+            '.github/workflows/test-cloudflare-live-relay.yml',
+            '.github/workflows/verify-direct-espn-core-browser.yml',
+            '.github/workflows/release-direct-espn-core-browser.yml',
+            'cloud-28/build_cloudflare_visual_staging.py',
+            'cloud-28/cloudflare-public-feed-shim.js',
+            'cloud-28/tests/browser-direct-core-overlay.mjs',
+            'cloud-28/tests/browser-direct-core-production.mjs',
+            'cloud-28/tests/direct-browser-core.test.mjs'
+          }
+          assert actual and not actual-allowed,f'Unreviewed change: {sorted(actual-allowed)}'
+          data=Path('cloud-28/cloudflare-public-feed-shim.js').read_text()
+          assert 'window.__MC_DIRECT_ESPN_STATS__' in data and "credentials:'omit'" in data
+          config=json.loads(re.sub(r'^\s*//.*$','',Path('wrangler.jsonc').read_text(),flags=re.M))
+          assert config['name']=='man-cave-28-page'
+          assert config['main']=='./cloud-28/cloudflare-live-proxy.mjs'
+          assert config['assets']['directory']=='./cloud-28/cloudflare-static-dist'
+          print('PASS_SCOPED_TRANSPORT_NO_APPROVED_VISUAL_CONTROLLER_CHANGES')
+          PY
+      - name: Pin active production version and rollback source before deployment
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deployments status --config wrangler.jsonc --json > "$RUNNER_TEMP/production-before.json"
+          python - "$RUNNER_TEMP/production-before.json" <<'PY'
+          import json,re,sys
+          from pathlib import Path
+          raw=Path(sys.argv[1]).read_text()
+          try:d=json.loads(raw)
+          except json.JSONDecodeError:
+            p=re.search(r'[\[{]',raw);assert p
+            d=json.JSONDecoder().raw_decode(raw[p.start():])[0]
+          v=[(x.get('version_id'),x.get('percentage')) for x in d.get('versions',[])]
+          expected='f27dce4c-032a-4459-bd34-6fa8f38357a3'
+          assert v==[(expected,100)],f'Production drift; refusing release: {v}'
+          print('PASS_EXACT_PREVIOUS_WORKING_WORKER_PINNED',expected)
+          PY
+      - name: Build only original Gold Master v8l static assets and transport shim
+        shell: bash
+        run: |
+          set -euo pipefail
+          python cloud-28/prepare.py
+          python cloud-28/build_cloudflare_assets.py
+          python cloud-28/tests/staging_runtime_images.test.py
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          root=Path('cloud-28/cloudflare-static-dist')
+          stage=root/'staging'
+          manifest=json.loads((stage/'boards.json').read_text())
+          assert len(manifest['boards'])==28 and manifest['duration_ms']==30000
+          assert len(list((stage/'boards').glob('*.html')))==28
+          assert b'/staging/espn-fetch-shim.js?v=direct-core-r1' in (stage/'boards/page3_celtics.html').read_bytes()
+          nested=(root/'hosted/page4_arizona_cfb/index.html').read_bytes()
+          assert nested.count(b'/staging/espn-fetch-shim.js?v=direct-core-r1')==1
+          assert nested.count(b'/staging/board-runtime-ancestor.js')==1
+          assert (stage/'espn-fetch-shim.js').read_bytes()==Path('cloud-28/cloudflare-public-feed-shim.js').read_bytes()
+          player=(stage/'player.html').read_bytes()
+          assert player.count(b'/staging/tv3-remote.js?v=stats-refresh-r2')==1
+          remote=(stage/'tv3-remote.js').read_bytes()
+          assert b"screens/third" in remote and b"command-refreshed" in remote and b"mcSend=" in remote
+          print('PASS_28_APPROVED_VISUALS_NESTED_ARIZONA_ORIGINAL_CONTROLLER_UNCHANGED')
+          PY
+          node --test cloud-28/tests/direct-browser-core.test.mjs cloud-28/tests/worker-proxy.test.mjs
+          npx --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir ./_direct-core-dryrun
+      - name: Deploy only verified direct ESPN Core browser transport to SAME Worker
+        id: deployed
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --config wrangler.jsonc --strict --keep-vars \
+            --message "Direct official browser ESPN Core season stats, verified nested Arizona; v8l and TV address unchanged"
+      - name: Verify exact same TV URL, 28 original pages and working backend APIs
+        id: verify
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,time
+          from urllib.request import Request,urlopen
+          from concurrent.futures import ThreadPoolExecutor
+          host='https://man-cave-28-page.broncos5523.workers.dev'
+          def get(path):
+            req=Request(host+path,headers={'User-Agent':'ManCaveDirectCoreRelease/1.0','Cache-Control':'no-cache'})
+            with urlopen(req,timeout=38) as r:
+              assert r.status==200
+              return r.read(6000000)
+          paths=[
+            ('/staging/player.html?rotate=ccw','player'),
+            ('/staging/tv3-remote.js?v=stats-refresh-r2','receiver'),
+            ('/staging/espn-fetch-shim.js?v=direct-core-r1','shim'),
+            ('/staging/boards.json','manifest'),
+            ('/staging/boards/page3_celtics','celtics'),
+            ('/hosted/page4_arizona_cfb/','arizona')
+          ]
+          for path,kind in paths:
+            raw=get(path)
+            if kind=='player':assert raw.count(b'/staging/tv3-remote.js?v=stats-refresh-r2')==1
+            if kind=='receiver':assert b'screens/third' in raw and b'command-refreshed' in raw
+            if kind=='shim':assert b'window.__MC_DIRECT_ESPN_STATS__' in raw
+            if kind=='manifest':
+              obj=json.loads(raw);assert len(obj['boards'])==28 and obj['duration_ms']==30000
+            if kind=='celtics':assert b'/staging/espn-fetch-shim.js?v=direct-core-r1' in raw
+            if kind=='arizona':assert raw.count(b'/staging/espn-fetch-shim.js?v=direct-core-r1')==1
+            print('PASS_PRODUCTION_TRANSPORT',kind)
+          page1=[('nfl',2026),('nba',2027),('nhl',2027),('mlb',2026),
+                 ('wnba',2026),('cfb',2026),('cbb',2027)]
+          def check(item):
+            name,year=item
+            raw=get('/api/board/page1_'+name+'?direct-core-release')
+            obj=json.loads(raw)
+            assert obj['dataState']=='current' and obj['context']['statsYear']==year,name
+            return name
+          with ThreadPoolExecutor(max_workers=4) as pool:
+            for n in pool.map(check,page1):print('PASS_CURRENT_PAGE1',n)
+          for board,year in [('page4_celtics',2027),('page4_fever',2026),('page4_arizona_cbb',2027)]:
+            obj=json.loads(get('/production/api/page4-live?board='+board+'&direct-core-release'))
+            assert obj['dataState']=='current' and obj['season']==year and obj['verifiedPlayers']>=3 and len(obj['leaders'])==6
+            print('PASS_CURRENT_BASKETBALL_PAGE4',board)
+          PY
+      - name: Verify native 2026 Arizona players and 2026-27 Celtics stats render from direct ESPN
+        shell: bash
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+          node cloud-28/tests/browser-direct-core-production.mjs
+      - name: Confirm one newly active Cloudflare version at 100 percent
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          npx --yes wrangler@4 deployments status --config wrangler.jsonc --json > "$RUNNER_TEMP/production-after.json"
+          python - "$RUNNER_TEMP/production-after.json" <<'PY'
+          import json,re,sys
+          from pathlib import Path
+          s=Path(sys.argv[1]).read_text()
+          try:d=json.loads(s)
+          except json.JSONDecodeError:
+            p=re.search(r'[\[{]',s);assert p
+            d=json.JSONDecoder().raw_decode(s[p.start():])[0]
+          v=[(x.get('version_id'),x.get('percentage')) for x in d.get('versions',[])]
+          assert len(v)==1 and v[0][1]==100 and v[0][0]!='f27dce4c-032a-4459-bd34-6fa8f38357a3',v
+          print('PASS_PRODUCTION_DIRECT_CORE_VERSION',v[0][0])
+          print('PRIOR_SAFE_ROLLBACK','f27dce4c-032a-4459-bd34-6fa8f38357a3')
+          PY
+      - name: Automatic rollback if any production post-check failed
+        if: failure() && steps.deployed.outcome == 'success'
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          npx --yes wrangler@4 rollback f27dce4c-032a-4459-bd34-6fa8f38357a3 \
+            --config wrangler.jsonc \
+            --message "Automatic rollback: direct ESPN Core browser release did not pass live checks"
+          echo "ROLLED_BACK_TO_CONFIRMED_F27DCE4C_VERSION"
