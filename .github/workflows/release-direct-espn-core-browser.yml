@@ -96,6 +96,7 @@ jobs:
           assert b"screens/third" in remote and b"command-refreshed" in remote and b"mcSend=" in remote
           print('PASS_28_APPROVED_VISUALS_NESTED_ARIZONA_ORIGINAL_CONTROLLER_UNCHANGED')
           PY
+          node --check cloud-28/tests/browser-direct-core-production.mjs
           node --test cloud-28/tests/direct-browser-core.test.mjs cloud-28/tests/worker-proxy.test.mjs
           npx --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir ./_direct-core-dryrun
       - name: Deploy only verified direct ESPN Core browser transport to SAME Worker
@@ -155,7 +156,7 @@ jobs:
             assert obj['dataState']=='current' and obj['season']==year and obj['verifiedPlayers']>=3 and len(obj['leaders'])==6
             print('PASS_CURRENT_BASKETBALL_PAGE4',board)
           PY
-      - name: Verify native 2026 Arizona players and 2026-27 Celtics stats render from direct ESPN
+      - name: Wait for complete native Celtics 2026-27 statistics and Arizona 2026 original player DOM
         shell: bash
         run: |
           npm install --no-save playwright
