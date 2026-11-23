@@ -1,0 +1,46 @@
+name: Verify direct ESPN Core browser fix without deployment
+on:
+  push:
+    branches: [fix/direct-espn-core-browser-20261122]
+    paths:
+      - cloud-28/cloudflare-public-feed-shim.js
+      - cloud-28/tests/direct-browser-core.test.mjs
+      - cloud-28/tests/browser-direct-core-overlay.mjs
+      - .github/workflows/verify-direct-espn-core-browser.yml
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate exact scoped source and JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only afa45f3fc082f85a566032a91ecb16c926ab4785 HEAD
+          node --check cloud-28/cloudflare-public-feed-shim.js
+          node --test cloud-28/tests/direct-browser-core.test.mjs
+          node --test cloud-28/tests/worker-proxy.test.mjs
+      - name: Build immutable original v8l visual staging and validate all 28
+        shell: bash
+        run: |
+          set -euo pipefail
+          python cloud-28/prepare.py
+          python cloud-28/build_cloudflare_assets.py
+          python cloud-28/tests/staging_runtime_images.test.py
+          python - <<'PY'
+          from pathlib import Path
+          root=Path('cloud-28/cloudflare-static-dist/staging')
+          assert len(list((root/'boards').glob('*.html')))==28
+          assert (root/'espn-fetch-shim.js').read_bytes()==Path('cloud-28/cloudflare-public-feed-shim.js').read_bytes()
+          assert b'/staging/tv3-remote.js?v=stats-refresh-r2' in (root/'player.html').read_bytes()
+          print('PASS_ALL_28_APPROVED_V8L_VISUALS_AND_SAME_RECEIVER')
+          PY
+      - name: Install headless Chromium
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Replace only browser shim in real production boards (mock intercept, no deploy)
+        run: node cloud-28/tests/browser-direct-core-overlay.mjs
