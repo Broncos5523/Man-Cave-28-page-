@@ -8,20 +8,13 @@ try{
   for(const id of ['page4_arizona_cfb','page3_celtics']){
     const ctx=await browser.newContext({viewport:{width:720,height:1280}}),page=await ctx.newPage();
     const requests=[],errors=[];
+    // Inject the proposed shim into every same-origin frame BEFORE any
+    // original board scripts, including the nested Arizona hosted app.
+    // The old deployed external shim is replaced with an inert duplicate.
+    await ctx.addInitScript({content:shim});
     await ctx.route('**/staging/espn-fetch-shim.js?*',route=>route.fulfill({
-      status:200,contentType:'application/javascript',body:shim
+      status:200,contentType:'application/javascript',body:'// supplied by browser addInitScript'
     }));
-    // Emulate the new child-iframe transport insertion without touching production.
-    await ctx.route('**/hosted/page4_arizona_cfb/?*',async route=>{
-      const response=await route.fetch();
-      let body=await response.text();
-      const head=/<head\\b[^>]*>/i.exec(body);
-      if(head&&!body.includes('direct-core-r1'))
-        body=body.slice(0,head.index+head[0].length)+
-          '<script src="/staging/espn-fetch-shim.js?v=direct-core-r1"></script>'+
-          body.slice(head.index+head[0].length);
-      await route.fulfill({response,body});
-    });
     page.on('response',r=>{
       const url=r.url();
       if(url.includes('sports.core.api.espn.com')||
@@ -43,7 +36,18 @@ try{
       outer.frames=await Promise.all(page.frames().map(async frame=>({url:frame.url().slice(0,190),data:await frame.evaluate(()=>({direct:window.__MC_DIRECT_ESPN_STATS__||null,shim:window.__MC_CLOUDFLARE_PUBLIC_FEED_RELAY__||null,ready:window.MCBoard?.ready||null})).catch(e=>({error:String(e)}))})));
       results.push({board:id,status:nav?.status(),...outer,requests:requests.slice(-35),errors:errors.slice(-6)});
     }catch(e){results.push({board:id,error:String(e),requests:requests.slice(-30),errors});}
-    console.log('DIRECT_CORE_INTEGRATION',JSON.stringify(results.at(-1)).slice(0,12000));
+    const out=results.at(-1);
+    const grouped={};for(const req of requests)grouped[req.status]=(grouped[req.status]||0)+1;
+    console.log('DIRECT_CORE_INTEGRATION_SUMMARY',JSON.stringify({
+      board:id,status:out.status,frames:out.frames,requestsByStatus:grouped,
+      firstRequests:requests.slice(0,8),text:out.text?.slice(0,300),errors:out.errors
+    }));
+    if(out.status!==200)throw Error('Board HTML unavailable '+id);
+    const totalDirect=out.frames?.reduce((n,f)=>n+(f.data?.direct?.success||0),0)||0;
+    if(totalDirect===0)throw Error('Direct ESPN Core shim not exercised on '+id);
+    if(id==='page4_arizona_cfb'&&
+       !out.frames?.some(f=>f.url.includes('/hosted/page4_arizona_cfb/')&&f.data?.direct?.success>0))
+      throw Error('Nested Arizona Core stats still bypass direct transport');
     await ctx.close();
   }
 }finally{await browser.close();}
