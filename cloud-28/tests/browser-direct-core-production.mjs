@@ -18,8 +18,17 @@ try{
        const target=id==='page4_arizona_cfb'
           ?[...document.querySelectorAll('iframe')].find(f=>f.src.includes('/hosted/page4_arizona_cfb/'))?.contentWindow
           :window;
-       return (target?.__MC_DIRECT_ESPN_STATS__?.success||0)>= (id==='page3_celtics'?20:5);
-     },id,{timeout:48000});
+       const successes=target?.__MC_DIRECT_ESPN_STATS__?.success||0;
+       if(id==='page3_celtics')
+         return successes>=20&&
+           (document.body?.innerText||'').includes('TEAM STATS · NBA RANK LIVE 2026-27');
+       // Loading the Core JSON is not the same as completing the original
+       // nested Arizona render/lifecycle and six visual leader cards.
+       try{
+         return successes>=5&&target.MCBoard?.ready===true&&
+           target.document.querySelectorAll('._leaderCard_w3kwp_9').length>=6;
+       }catch{return false;}
+     },id,{timeout:65000});
      const frames=await Promise.all(page.frames().map(async f=>({url:f.url(),
        stats:await f.evaluate(()=>({
          direct:window.__MC_DIRECT_ESPN_STATS__||null,
