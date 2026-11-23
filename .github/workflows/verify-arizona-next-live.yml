@@ -1,0 +1,45 @@
+name: Verify Arizona next-game fix in actual Page1 TV boards
+on:
+  push:
+    branches: [fix/page1-arizona-live-next-20261122]
+    paths:
+      - cloud-28/favorite-next-live.js
+      - cloud-28/build_cloudflare_visual_staging.py
+      - cloud-28/tests/browser-favorite-next-live.mjs
+      - .github/workflows/verify-arizona-next-live.yml
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate selective scripts preserve approved original boards
+        shell: bash
+        run: |
+          node --check cloud-28/favorite-next-live.js
+          python cloud-28/prepare.py
+          python cloud-28/build_cloudflare_assets.py
+          python - <<'PY'
+          from pathlib import Path
+          stage=Path('cloud-28/cloudflare-static-dist/staging')
+          js=stage/'favorite-next-live.js'
+          assert js.read_bytes()==Path('cloud-28/favorite-next-live.js').read_bytes()
+          boards=sorted((stage/'boards').glob('*.html'))
+          assert len(boards)==28
+          affected=[]
+          for p in boards:
+            count=p.read_bytes().count(b'/staging/favorite-next-live.js?v=arizona-next-r1')
+            assert count in (0,1)
+            if count:affected.append(p.stem)
+          assert sorted(affected)==['page1_cbb','page1_cfb'],affected
+          assert b'/staging/tv3-remote.js?v=stats-refresh-r2' in (stage/'player.html').read_bytes()
+          print('PASS_ONLY_TWO_V8L_CONTENT_LABELS_APPROVED_ARTWORK_AND_RECEIVER_UNCHANGED')
+          PY
+      - name: Install read-only browser
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Test actual Arizona schedule and original page DOM without production deployment
+        run: node cloud-28/tests/browser-favorite-next-live.mjs
