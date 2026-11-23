@@ -26,7 +26,7 @@ jobs:
           const page=await chrome.newPage({viewport:{width:720,height:1280}});
           const errors=[];
           page.on('console',m=>{if(m.type()==='error')errors.push(m.text().slice(0,200))});
-          await page.goto(host+'/staging/boards/page1_cfb',{waitUntil:'domcontentloaded',timeout:40000});
+          await page.goto(host+'/staging/',{waitUntil:'domcontentloaded',timeout:40000});
           const browser=await page.evaluate(async url=>{
             try{const response=await fetch(url,{mode:'cors',cache:'no-store',signal:AbortSignal.timeout(16000)});
               const data=await response.json().catch(()=>({}));return {
