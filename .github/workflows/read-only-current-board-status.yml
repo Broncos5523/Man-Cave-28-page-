@@ -1,0 +1,51 @@
+name: Check 28-page live freshness after failed same-board resend
+on:
+  push:
+    branches: [audit/remaining-page4-native-20261122]
+    paths: [.github/workflows/read-only-current-board-status.yml]
+permissions:
+  contents: read
+jobs:
+  read-only-current:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Compare all Page1 and Page4 data sources with current public response
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          const host='https://man-cave-28-page.broncos5523.workers.dev';
+          const boards=['nfl','nba','nhl','mlb','wnba','cfb','cbb'];
+          const aliases={nba:'celtics',nhl:'bruins',mlb:'redsox',wnba:'fever',cfb:'arizona_cfb',cbb:'arizona_cbb'};
+          async function get(url){
+            try{const r=await fetch(url,{headers:{Accept:'application/json','Cache-Control':'no-cache', 'User-Agent':'ManCaveReadOnly2026Audit/1.0'},signal:AbortSignal.timeout(30000)});
+              const body=await r.json().catch(()=>({}));
+              return {status:r.status,body};
+            }catch(error){return {status:0,body:{error:String(error)}}}
+          }
+          const feed=await get('https://raw.githubusercontent.com/Broncos5523/Man-Cave-28-page-/cloudflare-live-data/espn-core-season-cache.json?audit='+Date.now());
+          const current=Date.now();
+          console.log('CORE_CACHE_FRESHNESS',JSON.stringify({status:feed.status,generatedAt:feed.body.generatedAt,
+            ageMinutes:Math.round((current-Date.parse(feed.body.generatedAt))/60000),
+            keys:Object.keys(feed.body.entries||{}).length}));
+          const tasks=[
+            ...boards.map(sport=>({board:'page1_'+sport,url:host+'/api/board/page1_'+sport+'?noCache='+current})),
+            ...['page4_celtics','page4_fever','page4_arizona_cbb'].map(board=>({board,url:host+'/production/api/page4-live?board='+board+'&noCache='+current})),
+            {board:'arizona-cfb-core-leaders',url:host+'/proxy?url='+encodeURIComponent('https://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/teams/12/leaders?lang=en&region=us')},
+            {board:'broncos-spotlight-season',url:host+'/migration-api/nfl/season-stats?season=2026&athlete=4426338&team=7'},
+            {board:'cloudflare-28-manifest',url:host+'/staging/boards.json'}
+          ];
+          const results=await Promise.all(tasks.map(async item=>{
+            const r=await get(item.url),b=r.body, t=b.updatedAt||b.fetchedAt||null;
+            return {board:item.board,status:r.status,dataState:b.dataState??null,
+              context:b.context?.label||null,season:b.season||b.context?.statsYear||null,
+              updatedAt:t,ageMinutes:t?Math.round((Date.now()-Date.parse(t))/60000):null,
+              roster:b.roster?.length,verifiedPlayers:b.verifiedPlayers,
+              leaders:b.leaders?.length,
+              missing:b.error||b.detail||null,
+              source:b.__mcSource?.kind||null,
+              boardCount:b.boards?.length||null,
+              fields:Object.keys(b).slice(0,12)};
+          }));
+          for(const x of results)console.log('BOARD_FRESHNESS_RESULT',JSON.stringify(x));
+          JS
