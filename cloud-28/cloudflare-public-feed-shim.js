@@ -88,9 +88,10 @@
     if(method!=='GET')return null;
     let url;
     try{
-      const origin=raw.startsWith('/proxy?')
-        ?new URL(raw,'https://man-cave-local.invalid').searchParams.get('url')
-        :raw;
+      const parsed=new URL(raw,location.origin||'https://man-cave-28-page.broncos5523.workers.dev');
+      const own=parsed.pathname==='/proxy'&&(raw.startsWith('/proxy?')||
+        parsed.origin===(location.origin||'https://man-cave-28-page.broncos5523.workers.dev'));
+      const origin=own?parsed.searchParams.get('url'):raw;
       url=new URL(origin);
     }catch{return null;}
     if(url.protocol!=='https:'||url.hostname!=='sports.core.api.espn.com'||url.username||url.password||url.port)return null;
@@ -122,9 +123,10 @@
     XMLHttpRequest.prototype.open=function(method,raw,...args){
       if(board[1]!=='page4_broncos'&&String(method).toUpperCase()==='GET'&&typeof raw==='string'){
         try{
-          const origin=raw.startsWith('/proxy?')
-            ?new URL(raw,'https://man-cave-local.invalid').searchParams.get('url')
-            :raw;
+          const parsed=new URL(raw,location.origin||'https://man-cave-28-page.broncos5523.workers.dev');
+          const own=parsed.pathname==='/proxy'&&(raw.startsWith('/proxy?')||
+            parsed.origin===(location.origin||'https://man-cave-28-page.broncos5523.workers.dev'));
+          const origin=own?parsed.searchParams.get('url'):raw;
           const u=new URL(origin);
           const p=u.pathname.replace(/\/$/,'');
           const standard=/^\/v2\/sports\/(?:basketball\/leagues\/(?:nba|wnba|mens-college-basketball)|football\/leagues\/college-football)\/seasons\/20\d{2}\/types\/2\/(?:teams\/\d+\/(?:statistics|leaders)|athletes\/\d+\/statistics(?:\/0)?)$/.test(p);
