@@ -11,9 +11,24 @@ try{
     // Inject the proposed shim into every same-origin frame BEFORE any
     // original board scripts, including the nested Arizona hosted app.
     // The old deployed external shim is replaced with an inert duplicate.
-    await ctx.addInitScript({content:shim});
+    let hostedIntercepts=0;
+    await ctx.route('**/*',async route=>{
+      const request=route.request(),url=new URL(request.url());
+      if(request.resourceType()==='document'&&url.pathname==='/hosted/page4_arizona_cfb/'){
+        const response=await route.fetch();
+        let body=await response.text();
+        const head=/<head\\b[^>]*>/i.exec(body);
+        if(!head)throw Error('Arizona nested document lacks head');
+        body=body.slice(0,head.index+head[0].length)+
+          '<script src="/staging/espn-fetch-shim.js?v=direct-core-r1"></script>'+
+          body.slice(head.index+head[0].length);
+        hostedIntercepts++;
+        return route.fulfill({response,body});
+      }
+      return route.continue();
+    });
     await ctx.route('**/staging/espn-fetch-shim.js?*',route=>route.fulfill({
-      status:200,contentType:'application/javascript',body:'// supplied by browser addInitScript'
+      status:200,contentType:'application/javascript',body:shim
     }));
     page.on('response',r=>{
       const url=r.url();
@@ -39,16 +54,16 @@ try{
     const out=results.at(-1);
     const grouped={};for(const req of requests)grouped[req.status]=(grouped[req.status]||0)+1;
     console.log('DIRECT_CORE_INTEGRATION_SUMMARY',JSON.stringify({
-      board:id,status:out.status,frames:out.frames,requestsByStatus:grouped,
+      board:id,status:out.status,hostedIntercepts,frames:out.frames,requestsByStatus:grouped,
       firstRequests:requests.slice(0,8),text:out.text?.slice(0,300),errors:out.errors
     }));
     if(out.status!==200)throw Error('Board HTML unavailable '+id);
     const totalDirect=out.frames?.reduce((n,f)=>n+(f.data?.direct?.success||0),0)||0;
-    if(totalDirect===0)throw Error('Direct ESPN Core shim not exercised on '+id);
+    if(totalDirect===0)errors.push('Direct ESPN Core shim not exercised on '+id);
     if(id==='page4_arizona_cfb'&&
        !out.frames?.some(f=>f.url.includes('/hosted/page4_arizona_cfb/')&&f.data?.direct?.success>0))
-      throw Error('Nested Arizona Core stats still bypass direct transport');
+      errors.push('Nested Arizona Core stats still bypass direct transport');
     await ctx.close();
   }
 }finally{await browser.close();}
-if(results.some(x=>x.status!==200))process.exitCode=1;
+if(results.some(x=>x.status!==200||x.errors?.length>0))process.exitCode=1;
